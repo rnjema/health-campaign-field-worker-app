@@ -448,17 +448,26 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                             ),
                             if (schema.label != null) ...[
                               Text(
-                                resolveTemplateVariables(
-                                  localizations.translate(schema.label!),
-                                  formValues: getFormValues(formGroup, schema),
-                                  defaultValues: widget.defaultValues,
-                                  allPageValues: _getAllPageValues(
-                                      state.cachedSchemas[
-                                          widget.currentSchemaKey]!,
-                                      currentFormGroup: formGroup,
-                                      currentSchema: schema),
-                                ),
-                              ),
+                                  resolveTemplateVariables(
+                                    localizations.translate(schema.label!),
+                                    formValues:
+                                        getFormValues(formGroup, schema),
+                                    defaultValues: widget.defaultValues,
+                                    allPageValues: _getAllPageValues(
+                                        state.cachedSchemas[
+                                            widget.currentSchemaKey]!,
+                                        currentFormGroup: formGroup,
+                                        currentSchema: schema),
+                                  ),
+                                  style: Theme.of(context)
+                                      .digitTextTheme(context)
+                                      .headingXl
+                                      .copyWith(
+                                        color: Theme.of(context)
+                                            .colorTheme
+                                            .primary
+                                            .primary2,
+                                      )),
                               if (schema.description != null &&
                                   translateIfPresent(
                                           schema.description, localizations) !=
@@ -716,7 +725,12 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
               String? extractQuantity(dynamic obj) {
                 if (obj is Map) {
                   // Look for quantity-related fields
-                  final quantityKeys = ['quantity', 'quantityDistributed', 'quantityDelivered', 'qty'];
+                  final quantityKeys = [
+                    'quantity',
+                    'quantityDistributed',
+                    'quantityDelivered',
+                    'qty'
+                  ];
                   for (var key in quantityKeys) {
                     if (obj.containsKey(key)) return obj[key]?.toString();
                   }
@@ -724,7 +738,8 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                   for (var value in obj.values) {
                     if (value is Map) {
                       for (var key in quantityKeys) {
-                        if (value.containsKey(key)) return value[key]?.toString();
+                        if (value.containsKey(key))
+                          return value[key]?.toString();
                       }
                     }
                   }
@@ -741,7 +756,8 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
 
               // Fallback: show all key-value pairs if name/quantity not found
               return item.entries
-                  .map((e) => '${localizations.translate(e.key.toString())}: ${localizations.translate(e.value.toString())}')
+                  .map((e) =>
+                      '${localizations.translate(e.key.toString())}: ${localizations.translate(e.value.toString())}')
                   .join(', ');
             }
             return localizations.translate(item.toString());
