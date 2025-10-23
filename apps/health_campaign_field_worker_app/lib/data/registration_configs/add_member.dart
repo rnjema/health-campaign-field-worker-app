@@ -162,7 +162,6 @@ const addMember = '''{
           "enums": [
             { "code": "MALE", "name": "MALE" },
             { "code": "FEMALE", "name": "FEMALE" },
-            { "code": "OTHER", "name": "OTHER" }
           ],
           "errorMessage": "",
           "isMultiSelect": false
