@@ -254,7 +254,8 @@ class MemberCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.only(left: spacer1, bottom: spacer2),
                   child: Offstage(
-                    offstage: beneficiaryType != BeneficiaryType.individual,
+                    offstage: beneficiaryType != BeneficiaryType.individual ||
+                        isHead == true,
                     child: !isDelivered ||
                             isNotEligible ||
                             isBeneficiaryRefused ||
@@ -307,11 +308,13 @@ class MemberCard extends StatelessWidget {
                             ? const Offstage()
                             : !isNotEligible
                                 ? Offstage(
-                                    offstage: beneficiaryType !=
-                                            BeneficiaryType.individual &&
-                                        primaryButtonProperties?.hidden !=
-                                            null &&
-                                        primaryButtonProperties?.hidden == true,
+                                    offstage: (beneficiaryType !=
+                                                BeneficiaryType.individual &&
+                                            primaryButtonProperties?.hidden !=
+                                                null &&
+                                            primaryButtonProperties?.hidden ==
+                                                true) ||
+                                        (isHead == true),
                                     child: DigitButton(
                                       mainAxisSize: MainAxisSize.max,
                                       isDisabled:
