@@ -243,7 +243,7 @@ class _ProjectSelectionPageState extends LocalizedState<ProjectSelectionPage> {
       context: context,
       locale: AppSharedPreferences().getSelectedLocale!,
       moduleKey:
-          'REGISTRATIONFLOW,DELIVERYFLOW,ELIGIBILITYCHECKLIST,COMPLAINTFLOW,HFREFERALFLOW',
+          'REGISTRATIONFLOW,DELIVERYFLOW,ELIGIBILITYCHECKLIST,COMPLAINTFLOW,HFREFERALFLOW,ADDMEMBERFLOW',
 
       /// TODO: NEED TO MOVE CONSTANT FILE
       projectReferenceId: context.selectedProject.referenceID ?? '',
