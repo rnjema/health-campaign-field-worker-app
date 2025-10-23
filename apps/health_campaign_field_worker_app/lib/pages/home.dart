@@ -45,7 +45,6 @@ import '../data/local_store/app_shared_preferences.dart';
 import '../data/local_store/no_sql/schema/app_configuration.dart';
 import '../data/local_store/no_sql/schema/service_registry.dart';
 import '../data/local_store/secure_store/secure_store.dart';
-import '../data/registration_configs/add_member.dart';
 import '../data/registration_configs/referral.dart';
 import '../models/entities/roles_type.dart';
 import '../router/app_router.dart';
@@ -406,7 +405,7 @@ class _HomePageState extends LocalizedState<HomePage> {
           onPressed: () async {
             if (isTriggerLocalisation) {
               final moduleName =
-                  'hcm-registrationflow-${context.selectedProject.referenceID},hcm-deliveryflow-${context.selectedProject.referenceID}, hcm-eligibilitychecklist-${context.selectedProject.referenceID}';
+                  'hcm-registrationflow-${context.selectedProject.referenceID},hcm-deliveryflow-${context.selectedProject.referenceID}, hcm-eligibilitychecklist-${context.selectedProject.referenceID},hcm-add-member-${context.selectedProject.referenceID}';
               triggerLocalization(module: moduleName);
               isTriggerLocalisation = false;
             }
@@ -422,16 +421,20 @@ class _HomePageState extends LocalizedState<HomePage> {
                   allSchemas['REGISTRATIONFLOW'] as Map<String, dynamic>?;
               final deliverySchemaEntry =
                   allSchemas['DELIVERYFLOW'] as Map<String, dynamic>?;
+              final addMemberSchemaEntry =
+                  allSchemas['ADD_MEMBER'] as Map<String, dynamic>?;
               final checklistSchemaEntry =
                   allSchemas['ELIGIBILITYCHECKLIST'] as Map<String, dynamic>?;
 
               final registrationSchemaData = registrationSchemaEntry?['data'];
               final deliverySchemaData = deliverySchemaEntry?['data'];
               final checklistSchemaData = checklistSchemaEntry?['data'];
+              final addMemberSchemaData = addMemberSchemaEntry?['data'];
 
               if (registrationSchemaData != null ||
                   deliverySchemaData != null ||
-                  checklistSchemaData != null) {
+                  checklistSchemaData != null ||
+                  addMemberSchemaData != null) {
                 // Extract templates from both schemas
                 final regTemplatesRaw = registrationSchemaData?['templates'];
                 final delTemplatesRaw = deliverySchemaData?['templates'];
@@ -456,6 +459,7 @@ class _HomePageState extends LocalizedState<HomePage> {
                 final registrationConfig = json.encode(registrationSchemaData);
                 final deliveryConfig = json.encode(deliverySchemaData);
                 final checklistConfig = json.encode(checklistSchemaData);
+                final addMemberConfig = json.encode(addMemberSchemaData);
 
                 RegistrationDeliverySingleton().setTemplateConfigs(templates);
                 RegistrationDeliverySingleton()
@@ -463,7 +467,7 @@ class _HomePageState extends LocalizedState<HomePage> {
                 RegistrationDeliverySingleton()
                     .setDeliveryConfig(deliveryConfig);
                 RegistrationDeliverySingleton().setExtraConfigs(
-                    [addMember, checklistConfig, referralConfig]);
+                    [addMemberConfig, checklistConfig, referralConfig]);
               }
             }
             RegistrationDeliverySingleton()
