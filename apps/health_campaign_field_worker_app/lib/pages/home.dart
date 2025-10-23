@@ -422,7 +422,7 @@ class _HomePageState extends LocalizedState<HomePage> {
               final deliverySchemaEntry =
                   allSchemas['DELIVERYFLOW'] as Map<String, dynamic>?;
               final addMemberSchemaEntry =
-                  allSchemas['ADD_MEMBER'] as Map<String, dynamic>?;
+                  allSchemas['ADDMEMBERFLOW'] as Map<String, dynamic>?;
               final checklistSchemaEntry =
                   allSchemas['ELIGIBILITYCHECKLIST'] as Map<String, dynamic>?;
 

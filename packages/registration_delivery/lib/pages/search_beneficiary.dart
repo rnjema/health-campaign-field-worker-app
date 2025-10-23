@@ -293,7 +293,7 @@ class _SearchBeneficiaryPageState
                     formState.activeSchemaKey == "BENEFICIARY_REFERRED"
                         ? (jsonConfig['referral']?['models']
                             as Map<String, dynamic>)
-                        : formState.activeSchemaKey == "ADD_MEMBER"
+                        : formState.activeSchemaKey == "ADDMEMBERFLOW"
                             ? (jsonConfig['individualRegistration']?['models']
                                 as Map<String, dynamic>)
                             : formState.activeSchemaKey == 'DELIVERYFLOW'
@@ -306,7 +306,7 @@ class _SearchBeneficiaryPageState
                   final entities = formEntityMapper.updateEntitiesFromForm(
                     modelsConfig: modelsConfig,
                     formValues: formData,
-                    existingModels: formState.activeSchemaKey == "ADD_MEMBER"
+                    existingModels: formState.activeSchemaKey == "ADDMEMBERFLOW"
                         ? [if (individual != null) individual]
                         : [
                             if (household != null) household,
@@ -518,7 +518,7 @@ class _SearchBeneficiaryPageState
                     formState.activeSchemaKey == "BENEFICIARY_REFERRED"
                         ? (jsonConfig['referral']?['models']
                             as Map<String, dynamic>)
-                        : formState.activeSchemaKey == "ADD_MEMBER"
+                        : formState.activeSchemaKey == "ADDMEMBERFLOW"
                             ? (jsonConfig['individualRegistration']?['models']
                                 as Map<String, dynamic>)
                             : formState.activeSchemaKey == 'DELIVERYFLOW'
@@ -530,7 +530,7 @@ class _SearchBeneficiaryPageState
                 final fallBackModel =
                     formState.activeSchemaKey == "BENEFICIARY_REFERRED"
                         ? (jsonConfig['referral']?['fallbackModel'] as String?)
-                        : formState.activeSchemaKey == "ADD_MEMBER"
+                        : formState.activeSchemaKey == "ADDMEMBERFLOW"
                             ? (jsonConfig['individualRegistration']
                                 ?['fallbackModel'] as String?)
                             : formState.activeSchemaKey == 'DELIVERYFLOW'

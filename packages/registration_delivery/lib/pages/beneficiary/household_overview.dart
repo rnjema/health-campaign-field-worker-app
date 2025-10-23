@@ -1051,7 +1051,7 @@ class _HouseholdOverviewPageState
                                               final pageName = context
                                                   .read<FormsBloc>()
                                                   .state
-                                                  .cachedSchemas['ADD_MEMBER']
+                                                  .cachedSchemas['ADDMEMBERFLOW']
                                                   ?.pages
                                                   .entries
                                                   .first
@@ -1060,7 +1060,7 @@ class _HouseholdOverviewPageState
                                               context.router
                                                   .push(FormsRenderRoute(
                                                 isEdit: true,
-                                                currentSchemaKey: 'ADD_MEMBER',
+                                                currentSchemaKey: 'ADDMEMBERFLOW',
                                                 pageName: pageName!,
 
                                                 /// as registration is there assuming form won't be null
@@ -1275,7 +1275,7 @@ class _HouseholdOverviewPageState
     final pageName = context
         .read<FormsBloc>()
         .state
-        .cachedSchemas["ADD_MEMBER"]
+        .cachedSchemas["ADDMEMBERFLOW"]
         ?.pages
         .entries
         .first
@@ -1299,7 +1299,7 @@ class _HouseholdOverviewPageState
       );
 
       context.router.push(FormsRenderRoute(
-        currentSchemaKey: "ADD_MEMBER",
+        currentSchemaKey: "ADDMEMBERFLOW",
         pageName: pageName,
         defaultValues: {
           'administrativeArea': localizations
