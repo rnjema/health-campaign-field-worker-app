@@ -1,4 +1,4 @@
-final addMember = '''{
+const addMember = '''{
   "name": "ADD_MEMBER",
   "version": 1,
   "pages": {
@@ -126,7 +126,13 @@ final addMember = '''{
           "deleteFlag": false,
           "innerLabel": "",
           "systemDate": false,
-          "validations": [],
+          "validations": [
+          {
+              "type": "required",
+              "value": true,
+              "message": "Required field cannot be empty"
+            }
+          ],
           "errorMessage": "",
           "isMultiSelect": false
         },
@@ -146,31 +152,18 @@ final addMember = '''{
           "innerLabel": "",
           "schemaCode": "common-masters.GenderType",
           "systemDate": false,
-          "validations": [],
+          "validations": [
+          {
+              "type": "required",
+              "value": true,
+              "message": "Required field cannot be empty"
+            }
+          ],
           "enums": [
             { "code": "MALE", "name": "MALE" },
             { "code": "FEMALE", "name": "FEMALE" },
             { "code": "OTHER", "name": "OTHER" }
           ],
-          "errorMessage": "",
-          "isMultiSelect": false
-        },
-        "phone": {
-          "type": "string",
-          "label": "REGISTRATION_INDIVIDUAL_phone_LABEL",
-          "order": 6,
-          "value": "",
-          "format": "phoneNumber",
-          "hidden": false,
-          "tooltip": "",
-          "helpText": "",
-          "infoText": "",
-          "readOnly": false,
-          "fieldName": "phone",
-          "deleteFlag": false,
-          "innerLabel": "",
-          "systemDate": false,
-          "validations": [],
           "errorMessage": "",
           "isMultiSelect": false
         }
