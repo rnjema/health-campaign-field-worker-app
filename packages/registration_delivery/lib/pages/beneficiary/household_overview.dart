@@ -21,14 +21,12 @@ import 'package:digit_ui_components/widgets/molecules/show_pop_up.dart';
 import 'package:digit_ui_components/widgets/scrollable_content.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:registration_delivery/blocs/registration_wrapper/registration_wrapper_bloc.dart';
 import 'package:registration_delivery/data/transformer_config.dart';
+import 'package:registration_delivery/registration_delivery.dart';
 import 'package:survey_form/survey_form.dart';
 
 import '/widgets/status_filter/status_filter.dart';
 import '../../blocs/unique_id/unique_id.dart';
-import '../../models/entities/household.dart';
-import '../../models/entities/registration_delivery_enums.dart';
 import '../../models/entities/status.dart';
 import '../../router/registration_delivery_router.gm.dart';
 import '../../utils/i18_key_constants.dart' as i18;
@@ -1243,7 +1241,7 @@ class _HouseholdOverviewPageState
                                     mainAxisSize: MainAxisSize.max,
                                     onPressed: () => addIndividual(
                                       context,
-                                      state.householdMembers.first.household!,
+                                      state,
                                     ),
                                     label: localizations.translate(
                                       overviewTemplate
@@ -1270,7 +1268,10 @@ class _HouseholdOverviewPageState
     );
   }
 
-  addIndividual(BuildContext context, HouseholdModel household) async {
+  addIndividual(BuildContext context, RegistrationWrapperState state) async {
+    HouseholdModel household = state.householdMembers.first.household!;
+    IndividualModel headOfHousehold =
+        state.householdMembers.first.headOfHousehold!;
     final pageName = context
         .read<FormsBloc>()
         .state
@@ -1303,6 +1304,7 @@ class _HouseholdOverviewPageState
         defaultValues: {
           'administrativeArea': localizations
               .translate(RegistrationDeliverySingleton().boundary?.code ?? ''),
+          // 'phone': headOfHousehold.mobileNumber,
           'availableIDs': {
             'DEFAULT': IdGen.instance.identifier,
             'UNIQUE_BENEFICIARY_ID': currentUniqueId,
