@@ -22,8 +22,11 @@ import 'package:digit_ui_components/widgets/scrollable_content.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:registration_delivery/data/transformer_config.dart';
+import 'package:registration_delivery/models/entities/unique_id_pool.dart';
 import 'package:registration_delivery/registration_delivery.dart';
-import 'package:survey_form/survey_form.dart';
+import 'package:registration_delivery/widgets/back_navigation_help_header.dart';
+import 'package:registration_delivery/widgets/beneficiary/id_count_alert.dart';
+import 'package:survey_form/blocs/service_definition.dart';
 
 import '/widgets/status_filter/status_filter.dart';
 import '../../blocs/unique_id/unique_id.dart';
@@ -32,7 +35,6 @@ import '../../router/registration_delivery_router.gm.dart';
 import '../../utils/i18_key_constants.dart' as i18;
 import '../../utils/registration_component_keys.dart' as registration_keys;
 import '../../utils/utils.dart';
-import '../../widgets/back_navigation_help_header.dart';
 import '../../widgets/beneficiary/resource_card.dart';
 import '../../widgets/localized.dart';
 import '../../widgets/member_card/member_card.dart';
@@ -80,95 +82,344 @@ class _HouseholdOverviewPageState
           context.router.popUntilRouteWithName(SearchBeneficiaryRoute.name);
         });
       },
-      child: BlocBuilder<RegistrationWrapperBloc, RegistrationWrapperState>(
-        builder: (ctx, state) {
-          return Scaffold(
-            body: state.loading
-                ? const Center(child: CircularProgressIndicator())
-                : NotificationListener<ScrollNotification>(
-                    onNotification: (scrollNotification) {
-                      if (scrollNotification is ScrollUpdateNotification) {
-                        final metrics = scrollNotification.metrics;
-                        if (metrics.atEdge && metrics.pixels != 0) {
-                          if (state.offset != null) {
-                            callReloadEvent(
-                                offset: state.offset ?? 0, limit: limit);
-                          }
-                        }
-                      }
-                      //Return true to allow the notification to continue to be dispatched to further ancestors.
-                      return true;
+      child: BlocListener<UniqueIdBloc, UniqueIdState>(
+        listener: (context, uniqueIdState) {
+          uniqueIdState.maybeWhen(
+            orElse: () {},
+            idCount: (availableIdCount, totalCount, currentUniqueId) {
+              // Store the current state for use in navigation
+              final currentRegistrationState =
+                  context.read<RegistrationWrapperBloc>().state;
+
+              if (availableIdCount != 0 &&
+                  availableIdCount <
+                      RegistrationDeliverySingleton().beneficiaryIdMinCount!) {
+                // Show low IDs alert
+                showLowIdsAlert(
+                  context: context,
+                  availableCount: availableIdCount,
+                  localizations: localizations,
+                  shouldProceedFurther: (bool proceed) {
+                    if (proceed) {
+                      _navigateToAddMemberForm(
+                        context,
+                        currentRegistrationState,
+                        currentUniqueId,
+                      );
+                    }
+                  },
+                );
+              } else if (availableIdCount >=
+                  RegistrationDeliverySingleton().beneficiaryIdMinCount!) {
+                // Sufficient IDs available, navigate directly
+                _navigateToAddMemberForm(
+                  context,
+                  currentRegistrationState,
+                  currentUniqueId,
+                );
+              } else if (availableIdCount <= 0) {
+                // No IDs available
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  showNoIdsAlert(
+                    context: context,
+                    showSkip: true,
+                    localizations: localizations,
+                    shouldProceedFurther: (bool skip) {
+                      _navigateToAddMemberForm(
+                        context,
+                        currentRegistrationState,
+                        null, // No unique ID available
+                      );
                     },
-                    child: ScrollableContent(
-                      header: Padding(
-                        padding: const EdgeInsets.only(bottom: spacer2),
-                        child: BackNavigationHelpHeaderWidget(
-                          handleBack: () {
-                            context
-                                .read<RegistrationWrapperBloc>()
-                                .add(const RegistrationWrapperEvent.clear());
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              context.router.popUntilRouteWithName(
-                                  SearchBeneficiaryRoute.name);
-                            });
+                  );
+                });
+              }
+            },
+            failed: (String? error) {
+              if (error != null) {
+                Toast.showToast(
+                  context,
+                  message: localizations.translate(
+                    i18.beneficiaryDetails.failedBeneficiaryIds,
+                  ),
+                  type: ToastType.error,
+                );
+              }
+            },
+            limitExceeded: (String? error) {
+              if (error != null) {
+                showCustomPopup(
+                  context: context,
+                  builder: (ctx) {
+                    return Popup(
+                      type: PopUpType.alert,
+                      onCrossTap: () {
+                        Navigator.of(ctx).pop();
+                      },
+                      actions: [
+                        DigitButton(
+                          capitalizeLetters: false,
+                          type: DigitButtonType.primary,
+                          size: DigitButtonSize.large,
+                          mainAxisSize: MainAxisSize.max,
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            context.read<UniqueIdBloc>().add(
+                                  const UniqueIdEvent.fetchUniqueIdsFromServer(
+                                      reFetch: true),
+                                );
                           },
+                          label: localizations.translate(
+                            i18.beneficiaryDetails.beneficiaryIdsReFetch,
+                          ),
+                        ),
+                        DigitButton(
+                          capitalizeLetters: false,
+                          type: DigitButtonType.secondary,
+                          size: DigitButtonSize.large,
+                          mainAxisSize: MainAxisSize.max,
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                          },
+                          label: localizations.translate(
+                            i18.common.corecommonclose,
+                          ),
+                        ),
+                      ],
+                      title: localizations.translate(
+                        i18.beneficiaryDetails.beneficiaryIdsLimitError,
+                      ),
+                    );
+                  },
+                );
+              }
+            },
+            noInternet: () {
+              showCustomPopup(
+                context: context,
+                builder: (ctx) {
+                  return Popup(
+                    type: PopUpType.alert,
+                    onCrossTap: () {
+                      Navigator.of(ctx).pop();
+                    },
+                    actions: [
+                      DigitButton(
+                        capitalizeLetters: false,
+                        type: DigitButtonType.primary,
+                        size: DigitButtonSize.large,
+                        mainAxisSize: MainAxisSize.max,
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          context.read<UniqueIdBloc>().add(
+                                const UniqueIdEvent.fetchUniqueIdsFromServer(),
+                              );
+                        },
+                        label: localizations.translate(
+                          i18.common.coreCommonDataSyncRetry,
                         ),
                       ),
-                      enableFixedDigitButton: true,
-                      footer: DigitCard(
-                        margin: const EdgeInsets.only(top: spacer2),
-                        children: [
-                          Offstage(
-                            offstage:
-                                beneficiaryType == BeneficiaryType.individual ||
-                                    isOutsideProjectDateRange(),
-                            child: BlocBuilder<ServiceDefinitionBloc,
-                                ServiceDefinitionState>(
-                              builder: (context, serviceDefinitionState) =>
-                                  BlocBuilder<RegistrationWrapperBloc,
-                                      RegistrationWrapperState>(
-                                builder: (ctx, deliverInterventionState) =>
-                                    state.householdMembers.firstOrNull?.tasks
-                                                ?.lastOrNull?.status ==
-                                            Status.administeredSuccess.toValue()
-                                        ? Offstage(
-                                            offstage: overviewTemplate
-                                                    ?.properties?[
-                                                        registration_keys
-                                                            .commonKeys
-                                                            .secondaryButtonKey]
-                                                    ?.hidden ??
-                                                false,
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      vertical: spacer2),
+                      DigitButton(
+                        capitalizeLetters: false,
+                        type: DigitButtonType.secondary,
+                        size: DigitButtonSize.large,
+                        mainAxisSize: MainAxisSize.max,
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                        },
+                        label: localizations.translate(
+                          i18.common.corecommonclose,
+                        ),
+                      ),
+                    ],
+                    title: localizations.translate(
+                      i18.common.coreCommonNoInternet,
+                    ),
+                    description: localizations.translate(
+                      i18.beneficiaryDetails.noInternetBeneficiaryIdsText,
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+        child: BlocBuilder<RegistrationWrapperBloc, RegistrationWrapperState>(
+          builder: (ctx, state) {
+            return Scaffold(
+              body: state.loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : NotificationListener<ScrollNotification>(
+                      onNotification: (scrollNotification) {
+                        if (scrollNotification is ScrollUpdateNotification) {
+                          final metrics = scrollNotification.metrics;
+                          if (metrics.atEdge && metrics.pixels != 0) {
+                            if (state.offset != null) {
+                              callReloadEvent(
+                                  offset: state.offset ?? 0, limit: limit);
+                            }
+                          }
+                        }
+                        //Return true to allow the notification to continue to be dispatched to further ancestors.
+                        return true;
+                      },
+                      child: ScrollableContent(
+                        header: Padding(
+                          padding: const EdgeInsets.only(bottom: spacer2),
+                          child: BackNavigationHelpHeaderWidget(
+                            handleBack: () {
+                              context
+                                  .read<RegistrationWrapperBloc>()
+                                  .add(const RegistrationWrapperEvent.clear());
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                context.router.popUntilRouteWithName(
+                                    SearchBeneficiaryRoute.name);
+                              });
+                            },
+                          ),
+                        ),
+                        enableFixedDigitButton: true,
+                        footer: DigitCard(
+                          margin: const EdgeInsets.only(top: spacer2),
+                          children: [
+                            Offstage(
+                              offstage: beneficiaryType ==
+                                      BeneficiaryType.individual ||
+                                  isOutsideProjectDateRange(),
+                              child: BlocBuilder<ServiceDefinitionBloc,
+                                  ServiceDefinitionState>(
+                                builder: (context, serviceDefinitionState) =>
+                                    BlocBuilder<RegistrationWrapperBloc,
+                                        RegistrationWrapperState>(
+                                  builder: (ctx, deliverInterventionState) =>
+                                      state.householdMembers.firstOrNull?.tasks
+                                                  ?.lastOrNull?.status ==
+                                              Status.administeredSuccess
+                                                  .toValue()
+                                          ? Offstage(
+                                              offstage: overviewTemplate
+                                                      ?.properties?[
+                                                          registration_keys
+                                                              .commonKeys
+                                                              .secondaryButtonKey]
+                                                      ?.hidden ??
+                                                  false,
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: spacer2),
+                                                child: DigitButton(
+                                                  label:
+                                                      localizations.translate(
+                                                    overviewTemplate
+                                                            ?.properties?[
+                                                                registration_keys
+                                                                    .commonKeys
+                                                                    .secondaryButtonKey]
+                                                            ?.label ??
+                                                        '${RegistrationDeliverySingleton().selectedProject!.projectType}_${i18.memberCard.deliverDetailsUpdateLabel}',
+                                                  ),
+                                                  capitalizeLetters: false,
+                                                  isDisabled: state
+                                                              .householdMembers
+                                                              .first
+                                                              .tasks
+                                                              ?.lastOrNull
+                                                              ?.status ==
+                                                          Status
+                                                              .administeredSuccess
+                                                              .toValue()
+                                                      ? true
+                                                      : false,
+                                                  type:
+                                                      DigitButtonType.secondary,
+                                                  size: DigitButtonSize.large,
+                                                  mainAxisSize:
+                                                      MainAxisSize.max,
+                                                  onPressed: () {
+                                                    serviceDefinitionState.when(
+                                                        empty: () {},
+                                                        isloading: () {},
+                                                        serviceDefinitionFetch:
+                                                            (value, model) {
+                                                          if (value
+                                                              .where((element) =>
+                                                                  element.code
+                                                                      .toString()
+                                                                      .contains(
+                                                                          '${RegistrationDeliverySingleton().selectedProject!.name}.${RegistrationDeliveryEnums.eligibility.toValue()}'))
+                                                              .toList()
+                                                              .isEmpty) {
+                                                            //TODO: need to handle in smc flow
+                                                            // context.router.push(
+                                                            //   DeliverInterventionRoute(),
+                                                            // );
+                                                          } else {
+                                                            navigateToChecklist(
+                                                                ctx,
+                                                                state
+                                                                    .householdMembers
+                                                                    .first
+                                                                    .household!
+                                                                    .clientReferenceId,
+                                                                state
+                                                                    .householdMembers
+                                                                    .first
+                                                                    .household
+                                                                    ?.address);
+                                                          }
+                                                        });
+                                                    callReloadEvent(
+                                                        offset: state
+                                                            .householdMembers
+                                                            .first
+                                                            .members!
+                                                            .length,
+                                                        limit: limit);
+                                                  },
+                                                ),
+                                              ),
+                                            )
+                                          : Offstage(
+                                              offstage: (overviewTemplate
+                                                      ?.properties?[
+                                                          registration_keys
+                                                              .commonKeys
+                                                              .primaryButtonKey]
+                                                      ?.hidden ??
+                                                  false),
                                               child: DigitButton(
                                                 label: localizations.translate(
                                                   overviewTemplate
                                                           ?.properties?[
                                                               registration_keys
                                                                   .commonKeys
-                                                                  .secondaryButtonKey]
+                                                                  .primaryButtonKey]
                                                           ?.label ??
-                                                      '${RegistrationDeliverySingleton().selectedProject!.projectType}_${i18.memberCard.deliverDetailsUpdateLabel}',
+                                                      '${RegistrationDeliverySingleton().selectedProject!.projectType}_${i18.householdOverView.householdOverViewActionText}',
                                                 ),
                                                 capitalizeLetters: false,
-                                                isDisabled: state
-                                                            .householdMembers
-                                                            .first
-                                                            .tasks
-                                                            ?.lastOrNull
-                                                            ?.status ==
-                                                        Status
-                                                            .administeredSuccess
-                                                            .toValue()
-                                                    ? true
-                                                    : false,
-                                                type: DigitButtonType.secondary,
+                                                type: DigitButtonType.primary,
                                                 size: DigitButtonSize.large,
                                                 mainAxisSize: MainAxisSize.max,
-                                                onPressed: () {
+                                                isDisabled: (state
+                                                                    .householdMembers
+                                                                    .firstOrNull
+                                                                    ?.projectBeneficiaries ??
+                                                                [])
+                                                            .isEmpty ||
+                                                        state
+                                                                .householdMembers
+                                                                .first
+                                                                .tasks
+                                                                ?.lastOrNull
+                                                                ?.status ==
+                                                            Status
+                                                                .closeHousehold
+                                                                .toValue()
+                                                    ? true
+                                                    : false,
+                                                onPressed: () async {
                                                   serviceDefinitionState.when(
                                                       empty: () {},
                                                       isloading: () {},
@@ -179,26 +430,98 @@ class _HouseholdOverviewPageState
                                                                 element.code
                                                                     .toString()
                                                                     .contains(
+                                                                        '${RegistrationDeliverySingleton().selectedProject?.name}.${RegistrationDeliveryEnums.iec.toValue()}') ||
+                                                                element.code
+                                                                    .toString()
+                                                                    .contains(
                                                                         '${RegistrationDeliverySingleton().selectedProject!.name}.${RegistrationDeliveryEnums.eligibility.toValue()}'))
                                                             .toList()
                                                             .isEmpty) {
-                                                          //TODO: need to handle in smc flow
-                                                          // context.router.push(
-                                                          //   DeliverInterventionRoute(),
-                                                          // );
+                                                          if (overviewTemplate
+                                                                  ?.navigateTo !=
+                                                              null) {
+                                                            if (overviewTemplate!
+                                                                    .navigateTo
+                                                                    ?.type ==
+                                                                "form") {
+                                                              final pageName = context
+                                                                  .read<
+                                                                      FormsBloc>()
+                                                                  .state
+                                                                  .cachedSchemas[
+                                                                      overviewTemplate
+                                                                          .navigateTo!
+                                                                          .name]
+                                                                  ?.pages
+                                                                  .entries
+                                                                  .first
+                                                                  .key;
+
+                                                              if (pageName ==
+                                                                  null) {
+                                                                Toast.showToast(
+                                                                  context,
+                                                                  message: localizations
+                                                                      .translate(
+                                                                          'NO_FORM_FOUND_FOR_REGISTRATION'),
+                                                                  type: ToastType
+                                                                      .error,
+                                                                );
+                                                              } else {
+                                                                context.router.push(
+                                                                    FormsRenderRoute(
+                                                                  currentSchemaKey:
+                                                                      overviewTemplate
+                                                                          .navigateTo!
+                                                                          .name,
+                                                                  pageName:
+                                                                      pageName,
+                                                                  defaultValues: {
+                                                                    'administrativeArea':
+                                                                        localizations.translate(
+                                                                            RegistrationDeliverySingleton().boundary?.code ??
+                                                                                '')
+                                                                  },
+                                                                  customComponents: const [
+                                                                    {
+                                                                      'resourceCard':
+                                                                          ResourceCard()
+                                                                    }
+                                                                  ],
+                                                                ));
+                                                              }
+                                                            } else {
+                                                              context.router
+                                                                  .push(
+                                                                BeneficiaryDetailsRoute(),
+                                                              );
+                                                            }
+                                                          } else {
+                                                            context.router.push(
+                                                              BeneficiaryDetailsRoute(),
+                                                            );
+                                                          }
                                                         } else {
-                                                          navigateToChecklist(
-                                                              ctx,
-                                                              state
-                                                                  .householdMembers
-                                                                  .first
-                                                                  .household!
-                                                                  .clientReferenceId,
-                                                              state
-                                                                  .householdMembers
-                                                                  .first
-                                                                  .household
-                                                                  ?.address);
+                                                          //// FIXME: NO CHECKLIST FLOW, NEED TO REFACTOR THE CODE
+                                                          // navigateToChecklist(
+                                                          //     ctx,
+                                                          //     RegistrationDeliverySingleton()
+                                                          //                 .beneficiaryType ==
+                                                          //             BeneficiaryType
+                                                          //                 .individual
+                                                          //         ? state
+                                                          //             .selectedIndividual!
+                                                          //             .clientReferenceId
+                                                          //         : state
+                                                          //             .householdMembers
+                                                          //             .first
+                                                          //             .household!
+                                                          //             .clientReferenceId,
+                                                          //     state
+                                                          //         .householdMembers
+                                                          //         .first
+                                                          //         .household
+                                                          //         ?.address);
                                                         }
                                                       });
                                                   callReloadEvent(
@@ -211,1059 +534,939 @@ class _HouseholdOverviewPageState
                                                 },
                                               ),
                                             ),
-                                          )
-                                        : Offstage(
-                                            offstage: (overviewTemplate
-                                                    ?.properties?[
-                                                        registration_keys
-                                                            .commonKeys
-                                                            .primaryButtonKey]
-                                                    ?.hidden ??
-                                                false),
-                                            child: DigitButton(
-                                              label: localizations.translate(
-                                                overviewTemplate
-                                                        ?.properties?[
-                                                            registration_keys
-                                                                .commonKeys
-                                                                .primaryButtonKey]
-                                                        ?.label ??
-                                                    '${RegistrationDeliverySingleton().selectedProject!.projectType}_${i18.householdOverView.householdOverViewActionText}',
-                                              ),
-                                              capitalizeLetters: false,
-                                              type: DigitButtonType.primary,
-                                              size: DigitButtonSize.large,
-                                              mainAxisSize: MainAxisSize.max,
-                                              isDisabled: (state
-                                                                  .householdMembers
-                                                                  .firstOrNull
-                                                                  ?.projectBeneficiaries ??
-                                                              [])
-                                                          .isEmpty ||
-                                                      state
-                                                              .householdMembers
-                                                              .first
-                                                              .tasks
-                                                              ?.lastOrNull
-                                                              ?.status ==
-                                                          Status.closeHousehold
-                                                              .toValue()
-                                                  ? true
-                                                  : false,
-                                              onPressed: () async {
-                                                serviceDefinitionState.when(
-                                                    empty: () {},
-                                                    isloading: () {},
-                                                    serviceDefinitionFetch:
-                                                        (value, model) {
-                                                      if (value
-                                                          .where((element) =>
-                                                              element.code
-                                                                  .toString()
-                                                                  .contains(
-                                                                      '${RegistrationDeliverySingleton().selectedProject?.name}.${RegistrationDeliveryEnums.iec.toValue()}') ||
-                                                              element.code
-                                                                  .toString()
-                                                                  .contains(
-                                                                      '${RegistrationDeliverySingleton().selectedProject!.name}.${RegistrationDeliveryEnums.eligibility.toValue()}'))
-                                                          .toList()
-                                                          .isEmpty) {
-                                                        if (overviewTemplate
-                                                                ?.navigateTo !=
-                                                            null) {
-                                                          if (overviewTemplate!
-                                                                  .navigateTo
-                                                                  ?.type ==
-                                                              "form") {
-                                                            final pageName = context
-                                                                .read<
-                                                                    FormsBloc>()
-                                                                .state
-                                                                .cachedSchemas[
-                                                                    overviewTemplate
-                                                                        .navigateTo!
-                                                                        .name]
-                                                                ?.pages
-                                                                .entries
-                                                                .first
-                                                                .key;
-
-                                                            if (pageName ==
-                                                                null) {
-                                                              Toast.showToast(
-                                                                context,
-                                                                message: localizations
-                                                                    .translate(
-                                                                        'NO_FORM_FOUND_FOR_REGISTRATION'),
-                                                                type: ToastType
-                                                                    .error,
-                                                              );
-                                                            } else {
-                                                              context.router.push(
-                                                                  FormsRenderRoute(
-                                                                currentSchemaKey:
-                                                                    overviewTemplate
-                                                                        .navigateTo!
-                                                                        .name,
-                                                                pageName:
-                                                                    pageName,
-                                                                defaultValues: {
-                                                                  'administrativeArea':
-                                                                      localizations.translate(
-                                                                          RegistrationDeliverySingleton().boundary?.code ??
-                                                                              '')
-                                                                },
-                                                                customComponents: const [
-                                                                  {
-                                                                    'resourceCard':
-                                                                        ResourceCard()
-                                                                  }
-                                                                ],
-                                                              ));
-                                                            }
-                                                          } else {
-                                                            context.router.push(
-                                                              BeneficiaryDetailsRoute(),
-                                                            );
-                                                          }
-                                                        } else {
-                                                          context.router.push(
-                                                            BeneficiaryDetailsRoute(),
-                                                          );
-                                                        }
-                                                      } else {
-                                                        //// FIXME: NO CHECKLIST FLOW, NEED TO REFACTOR THE CODE
-                                                        // navigateToChecklist(
-                                                        //     ctx,
-                                                        //     RegistrationDeliverySingleton()
-                                                        //                 .beneficiaryType ==
-                                                        //             BeneficiaryType
-                                                        //                 .individual
-                                                        //         ? state
-                                                        //             .selectedIndividual!
-                                                        //             .clientReferenceId
-                                                        //         : state
-                                                        //             .householdMembers
-                                                        //             .first
-                                                        //             .household!
-                                                        //             .clientReferenceId,
-                                                        //     state
-                                                        //         .householdMembers
-                                                        //         .first
-                                                        //         .household
-                                                        //         ?.address);
-                                                      }
-                                                    });
-                                                callReloadEvent(
-                                                    offset: state
-                                                        .householdMembers
-                                                        .first
-                                                        .members!
-                                                        .length,
-                                                    limit: limit);
-                                              },
-                                            ),
-                                          ),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      slivers: [
-                        SliverToBoxAdapter(
-                          child: DigitCard(
-                              margin: const EdgeInsets.all(spacer2),
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.max,
-                                  children: [
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(spacer2),
-                                        child: Text(
-                                          overviewTemplate?.label != null
-                                              ? localizations.translate(
-                                                  overviewTemplate?.label ??
-                                                      i18.householdOverView
-                                                          .householdOverViewLabel)
-                                              : localizations.translate(i18
-                                                  .householdOverView
-                                                  .householdOverViewLabel),
-                                          style: textTheme.headingXl.copyWith(
-                                              color: theme
-                                                  .colorTheme.primary.primary2),
-                                        ),
-                                      ),
-                                    ),
-                                    if ((state.householdMembers.firstOrNull
-                                                ?.projectBeneficiaries ??
-                                            [])
-                                        .isNotEmpty)
-                                      Offstage(
-                                        offstage: overviewTemplate
-                                                ?.properties?[registration_keys
-                                                    .householdOverViewKeys
-                                                    .editHouseholdKey]
-                                                ?.hidden ??
-                                            true,
-                                        child: Align(
-                                          alignment: Alignment.centerRight,
-                                          child: DigitButton(
-                                            onPressed: () {
-                                              showDialog(
-                                                context: context,
-                                                builder: (ctx) =>
-                                                    DigitActionCard(
-                                                  actions: [
-                                                    DigitButton(
-                                                      capitalizeLetters: false,
-                                                      prefixIcon: Icons.edit,
-                                                      label: (RegistrationDeliverySingleton()
-                                                                  .householdType ==
-                                                              HouseholdType
-                                                                  .community)
-                                                          ? localizations.translate(i18
-                                                              .householdOverView
-                                                              .clfOverViewEditLabel)
-                                                          : localizations
-                                                              .translate(
-                                                              i18.householdOverView
-                                                                  .householdOverViewEditLabel,
-                                                            ),
-                                                      type: DigitButtonType
-                                                          .secondary,
-                                                      size:
-                                                          DigitButtonSize.large,
-                                                      onPressed: () async {
-                                                        Navigator.of(
-                                                          context,
-                                                          rootNavigator: true,
-                                                        ).pop();
-
-                                                        HouseholdWrapper
-                                                            wrapper = state
-                                                                .householdMembers
-                                                                .first;
-
-                                                        final mapper =
-                                                            ReverseFormMapper(
-                                                          formConfig: jsonConfig[
-                                                              'beneficiaryRegistration']!,
-                                                          modelInstances: [
-                                                            if (wrapper
-                                                                    .household !=
-                                                                null)
-                                                              wrapper
-                                                                  .household!,
-                                                            if (wrapper
-                                                                    .individuals
-                                                                    ?.first !=
-                                                                null)
-                                                              wrapper
-                                                                  .individuals!
-                                                                  .first,
-                                                            if (wrapper.members
-                                                                    ?.first !=
-                                                                null)
-                                                              wrapper.members!
-                                                                  .first,
-                                                            if (wrapper
-                                                                    .projectBeneficiaries
-                                                                    ?.first !=
-                                                                null)
-                                                              wrapper
-                                                                  .projectBeneficiaries!
-                                                                  .first,
-                                                          ],
-                                                        );
-
-                                                        final formData = mapper
-                                                            .buildFormData();
-
-                                                        final pageName = context
-                                                            .read<FormsBloc>()
-                                                            .state
-                                                            .cachedSchemas[
-                                                                'REGISTRATIONFLOW']
-                                                            ?.pages
-                                                            .entries
-                                                            .first
-                                                            .key;
-
-                                                        context.router.push(
-                                                            FormsRenderRoute(
-                                                          isEdit: true,
-                                                          currentSchemaKey:
-                                                              'REGISTRATIONFLOW',
-                                                          pageName: pageName!,
-
-                                                          /// as registraion is there assuming form won't be null
-                                                          defaultValues:
-                                                              formData,
-                                                        ));
-                                                        callReloadEvent(
-                                                            offset: 0,
-                                                            limit: 10);
-                                                      },
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                            },
-                                            label: overviewTemplate
-                                                        ?.properties?[
-                                                            registration_keys
-                                                                .householdOverViewKeys
-                                                                .editHouseholdKey]
-                                                        ?.label !=
-                                                    null
-                                                ? localizations.translate(overviewTemplate
-                                                        ?.properties?[
-                                                            registration_keys
-                                                                .householdOverViewKeys
-                                                                .editHouseholdKey]
-                                                        ?.label ??
-                                                    i18.householdOverView
-                                                        .householdOverViewEditIconText)
-                                                : (RegistrationDeliverySingleton()
-                                                            .householdType ==
-                                                        HouseholdType.community)
-                                                    ? localizations.translate(i18
-                                                        .householdOverView
-                                                        .clfOverViewEditIconText)
-                                                    : localizations.translate(
+                          ],
+                        ),
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: DigitCard(
+                                margin: const EdgeInsets.all(spacer2),
+                                children: [
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.max,
+                                    children: [
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Padding(
+                                          padding:
+                                              const EdgeInsets.all(spacer2),
+                                          child: Text(
+                                            overviewTemplate?.label != null
+                                                ? localizations.translate(
+                                                    overviewTemplate?.label ??
                                                         i18.householdOverView
-                                                            .householdOverViewEditIconText,
-                                                      ),
-                                            type: DigitButtonType.tertiary,
-                                            size: DigitButtonSize.medium,
-                                            prefixIcon: Icons.edit,
-                                            capitalizeLetters: false,
+                                                            .householdOverViewLabel)
+                                                : localizations.translate(i18
+                                                    .householdOverView
+                                                    .householdOverViewLabel),
+                                            style: textTheme.headingXl.copyWith(
+                                                color: theme.colorTheme.primary
+                                                    .primary2),
                                           ),
                                         ),
                                       ),
+                                      if ((state.householdMembers.firstOrNull
+                                                  ?.projectBeneficiaries ??
+                                              [])
+                                          .isNotEmpty)
+                                        Offstage(
+                                          offstage: overviewTemplate
+                                                  ?.properties?[
+                                                      registration_keys
+                                                          .householdOverViewKeys
+                                                          .editHouseholdKey]
+                                                  ?.hidden ??
+                                              true,
+                                          child: Align(
+                                            alignment: Alignment.centerRight,
+                                            child: DigitButton(
+                                              onPressed: () {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (ctx) =>
+                                                      DigitActionCard(
+                                                    actions: [
+                                                      DigitButton(
+                                                        capitalizeLetters:
+                                                            false,
+                                                        prefixIcon: Icons.edit,
+                                                        label: (RegistrationDeliverySingleton()
+                                                                    .householdType ==
+                                                                HouseholdType
+                                                                    .community)
+                                                            ? localizations
+                                                                .translate(i18
+                                                                    .householdOverView
+                                                                    .clfOverViewEditLabel)
+                                                            : localizations
+                                                                .translate(
+                                                                i18.householdOverView
+                                                                    .householdOverViewEditLabel,
+                                                              ),
+                                                        type: DigitButtonType
+                                                            .secondary,
+                                                        size: DigitButtonSize
+                                                            .large,
+                                                        onPressed: () async {
+                                                          Navigator.of(
+                                                            context,
+                                                            rootNavigator: true,
+                                                          ).pop();
 
-                                    ///Old UI Format
-                                    // BlocBuilder<DeliverInterventionBloc,
-                                    //     DeliverInterventionState>(
-                                    //   builder: (ctx, deliverInterventionState) =>
-                                    //       Offstage(
-                                    //     offstage: beneficiaryType ==
-                                    //         BeneficiaryType.individual,
-                                    //     child: Align(
-                                    //       alignment: Alignment.centerLeft,
-                                    //       child: DigitIconButton(
-                                    //         icon: getStatusAttributes(state,
-                                    //             deliverInterventionState)['icon'],
-                                    //         iconText: localizations.translate(
-                                    //           getStatusAttributes(state,
-                                    //                   deliverInterventionState)[
-                                    //               'textLabel'],
-                                    //         ), // [TODO: map task status accordingly based on projectBeneficiaries and tasks]
-                                    //         iconTextColor: getStatusAttributes(state,
-                                    //             deliverInterventionState)['color'],
-                                    //         iconColor: getStatusAttributes(state,
-                                    //             deliverInterventionState)['color'],
-                                    //       ),
-                                    //     ),
-                                    //   ),
-                                    // ),
-
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        left: spacer2,
-                                        right: spacer2,
-                                      ),
-                                      child: BlocBuilder<
-                                              RegistrationWrapperBloc,
-                                              RegistrationWrapperState>(
-                                          builder:
-                                              (ctx, deliverInterventionState) {
-                                        bool shouldShowStatus =
-                                            beneficiaryType ==
-                                                BeneficiaryType.household;
-
-                                        if (RegistrationDeliverySingleton()
-                                                .householdType ==
-                                            HouseholdType.community) {
-                                          return Column(
-                                            children: [
-                                              DigitTableCard(element: {
-                                                localizations.translate(i18
-                                                    .householdOverView
-                                                    .instituteNameLabel): state
-                                                        .householdMembers
-                                                        .first
-                                                        .household
-                                                        ?.address
-                                                        ?.buildingName ??
-                                                    localizations.translate(i18
-                                                        .common.coreCommonNA),
-                                                localizations.translate(
-                                                  i18.deliverIntervention
-                                                      .memberCountText,
-                                                ): state.householdMembers.first
-                                                    .household?.memberCount,
-                                                localizations.translate(
-                                                  i18.householdLocation
-                                                      .administrationAreaFormLabel,
-                                                ): localizations.translate(state
-                                                        .householdMembers
-                                                        .first
-                                                        .headOfHousehold
-                                                        ?.address
-                                                        ?.first
-                                                        .locality
-                                                        ?.code ??
-                                                    i18.common.coreCommonNA),
-                                              }),
-                                            ],
-                                          );
-                                        }
-
-                                        final headName = state.householdMembers
-                                            .firstOrNull?.headOfHousehold?.name;
-                                        final fullName = [
-                                          headName?.givenName?.trim(),
-                                          headName?.familyName?.trim(),
-                                        ].whereNotNull().join(' ');
-
-                                        final displayName = fullName.isNotEmpty
-                                            ? fullName
-                                            : localizations.translate(
-                                                i18.common.coreCommonNA);
-
-                                        return overviewTemplate
-                                                    ?.properties?[
-                                                        registration_keys
-                                                            .householdOverViewKeys
-                                                            .detailsCardKey]
-                                                    ?.hidden !=
-                                                true
-                                            ? Column(
-                                                children: [
-                                                  DigitTableCard(
-                                                    element: buildEnumValueMap(
-                                                                state
-                                                                    .householdMembers
-                                                                    .firstOrNull,
-                                                                overviewTemplate
-                                                                    ?.properties?[registration_keys
-                                                                        .householdOverViewKeys
-                                                                        .detailsCardKey]
-                                                                    ?.enums,
-                                                                selectedIndividual:
-                                                                    null)
-                                                            ?.map((k, v) => MapEntry(
-                                                                localizations
-                                                                    .translate(
-                                                                        k),
-                                                                localizations
-                                                                    .translate(v
-                                                                        .toString()))) ??
-                                                        {
-                                                          localizations.translate(i18
-                                                                  .householdOverView
-                                                                  .householdOverViewHouseholdHeadNameLabel):
-                                                              displayName,
-                                                          localizations
-                                                              .translate(
-                                                            i18.householdLocation
-                                                                .administrationAreaFormLabel,
-                                                          ): localizations.translate(state
+                                                          HouseholdWrapper
+                                                              wrapper = state
                                                                   .householdMembers
-                                                                  .firstOrNull
-                                                                  ?.headOfHousehold
-                                                                  ?.address
-                                                                  ?.first
-                                                                  .locality
-                                                                  ?.code ??
-                                                              i18.common
-                                                                  .coreCommonNA),
-                                                          localizations
-                                                              .translate(
-                                                            i18.deliverIntervention
-                                                                .memberCountText,
-                                                          ): state
-                                                              .householdMembers
-                                                              .firstOrNull
-                                                              ?.household
-                                                              ?.memberCount,
-                                                          if (shouldShowStatus)
-                                                            localizations.translate(i18
-                                                                    .beneficiaryDetails
-                                                                    .status):
-                                                                localizations
-                                                                    .translate(
-                                                              getStatusAttributes(
-                                                                      state)[
-                                                                  'textLabel'],
-                                                            )
-                                                        },
-                                                  ),
-                                                ],
-                                              )
-                                            : const SizedBox.shrink();
-                                      }),
-                                    ),
-                                    if (RegistrationDeliverySingleton()
-                                            .householdType ==
-                                        HouseholdType.community) ...[
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                            top: spacer2, bottom: spacer2),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: DigitSearchBar(
-                                                controller: searchController,
-                                                hintText:
-                                                    localizations.translate(
-                                                  i18.common.searchByName,
-                                                ),
-                                                textCapitalization:
-                                                    TextCapitalization.words,
-                                                onChanged: (value) {
-                                                  if (value.length >= 3) {
-                                                    callReloadEvent(
-                                                        offset: 0, limit: 10);
-                                                  } else if (searchController
-                                                      .value.text.isEmpty) {
-                                                    callReloadEvent(
-                                                        offset: 0, limit: 10);
-                                                  }
-                                                },
-                                              ),
-                                            ),
-                                            Column(
-                                              children: [
-                                                getFilters()
-                                                    ? Align(
-                                                        alignment:
-                                                            Alignment.topLeft,
-                                                        child: Padding(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .all(spacer2),
-                                                          child: DigitButton(
-                                                            label:
-                                                                getFilterIconNLabel()[
-                                                                    'label'],
-                                                            size:
-                                                                DigitButtonSize
-                                                                    .medium,
-                                                            type:
-                                                                DigitButtonType
-                                                                    .tertiary,
-                                                            suffixIcon:
-                                                                getFilterIconNLabel()[
-                                                                    'icon'],
-                                                            onPressed: () =>
-                                                                showFilterDialog(),
-                                                          ),
-                                                        ),
-                                                      )
-                                                    : const Offstage(),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                    selectedFilters.isNotEmpty
-                                        ? Align(
-                                            alignment: Alignment.topLeft,
-                                            child: SizedBox(
-                                              height: MediaQuery.of(context)
-                                                      .size
-                                                      .height *
-                                                  0.06,
-                                              child: ListView.builder(
-                                                  shrinkWrap: true,
-                                                  scrollDirection:
-                                                      Axis.horizontal,
-                                                  itemCount:
-                                                      selectedFilters.length,
-                                                  itemBuilder:
-                                                      (context, index) {
-                                                    return Padding(
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                              spacer1),
-                                                      child: DigitChip(
-                                                        label:
-                                                            '${localizations.translate(getStatus(selectedFilters[index]))}'
-                                                            ' (${state.householdMembers.firstOrNull?.members?.length})',
-                                                        onItemDelete: () {
-                                                          selectedFilters.remove(
-                                                              selectedFilters[
-                                                                  index]);
+                                                                  .first;
+
+                                                          final mapper =
+                                                              ReverseFormMapper(
+                                                            formConfig: jsonConfig[
+                                                                'beneficiaryRegistration']!,
+                                                            modelInstances: [
+                                                              if (wrapper
+                                                                      .household !=
+                                                                  null)
+                                                                wrapper
+                                                                    .household!,
+                                                              if (wrapper
+                                                                      .individuals
+                                                                      ?.first !=
+                                                                  null)
+                                                                wrapper
+                                                                    .individuals!
+                                                                    .first,
+                                                              if (wrapper
+                                                                      .members
+                                                                      ?.first !=
+                                                                  null)
+                                                                wrapper.members!
+                                                                    .first,
+                                                              if (wrapper
+                                                                      .projectBeneficiaries
+                                                                      ?.first !=
+                                                                  null)
+                                                                wrapper
+                                                                    .projectBeneficiaries!
+                                                                    .first,
+                                                            ],
+                                                          );
+
+                                                          final formData = mapper
+                                                              .buildFormData();
+
+                                                          final pageName = context
+                                                              .read<FormsBloc>()
+                                                              .state
+                                                              .cachedSchemas[
+                                                                  'REGISTRATIONFLOW']
+                                                              ?.pages
+                                                              .entries
+                                                              .first
+                                                              .key;
+
+                                                          context.router.push(
+                                                              FormsRenderRoute(
+                                                            isEdit: true,
+                                                            currentSchemaKey:
+                                                                'REGISTRATIONFLOW',
+                                                            pageName: pageName!,
+
+                                                            /// as registraion is there assuming form won't be null
+                                                            defaultValues:
+                                                                formData,
+                                                          ));
                                                           callReloadEvent(
                                                               offset: 0,
                                                               limit: 10);
                                                         },
                                                       ),
-                                                    );
-                                                  }),
+                                                    ],
+                                                  ),
+                                                );
+                                              },
+                                              label: overviewTemplate
+                                                          ?.properties?[
+                                                              registration_keys
+                                                                  .householdOverViewKeys
+                                                                  .editHouseholdKey]
+                                                          ?.label !=
+                                                      null
+                                                  ? localizations.translate(overviewTemplate
+                                                          ?.properties?[
+                                                              registration_keys
+                                                                  .householdOverViewKeys
+                                                                  .editHouseholdKey]
+                                                          ?.label ??
+                                                      i18.householdOverView
+                                                          .householdOverViewEditIconText)
+                                                  : (RegistrationDeliverySingleton()
+                                                              .householdType ==
+                                                          HouseholdType
+                                                              .community)
+                                                      ? localizations.translate(i18
+                                                          .householdOverView
+                                                          .clfOverViewEditIconText)
+                                                      : localizations.translate(
+                                                          i18.householdOverView
+                                                              .householdOverViewEditIconText,
+                                                        ),
+                                              type: DigitButtonType.tertiary,
+                                              size: DigitButtonSize.medium,
+                                              prefixIcon: Icons.edit,
+                                              capitalizeLetters: false,
                                             ),
-                                          )
-                                        : const Offstage(),
-                                    Column(
-                                      children:
-                                          (state.householdMembers.firstOrNull
-                                                      ?.individuals
-                                                      ?.where((m) {
-                                                    // Identify if this member is a "child" in any other member's relationships
-                                                    final isChild = state
-                                                        .householdMembers
-                                                        .first
-                                                        .members
-                                                        ?.any((member) =>
-                                                            member.memberRelationships !=
-                                                                null &&
-                                                            member
-                                                                .memberRelationships!
-                                                                .isNotEmpty &&
-                                                            member.individualClientReferenceId ==
-                                                                m.clientReferenceId);
+                                          ),
+                                        ),
 
-                                                    return !(isChild ??
-                                                        false); // Only show if not a child
-                                                  }).toList() ??
-                                                  [])
-                                              .map(
-                                        (e) {
-                                          final isHead = state
-                                                  .householdMembers
-                                                  .first
-                                                  .headOfHousehold
-                                                  ?.clientReferenceId ==
-                                              e.clientReferenceId;
+                                      ///Old UI Format
+                                      // BlocBuilder<DeliverInterventionBloc,
+                                      //     DeliverInterventionState>(
+                                      //   builder: (ctx, deliverInterventionState) =>
+                                      //       Offstage(
+                                      //     offstage: beneficiaryType ==
+                                      //         BeneficiaryType.individual,
+                                      //     child: Align(
+                                      //       alignment: Alignment.centerLeft,
+                                      //       child: DigitIconButton(
+                                      //         icon: getStatusAttributes(state,
+                                      //             deliverInterventionState)['icon'],
+                                      //         iconText: localizations.translate(
+                                      //           getStatusAttributes(state,
+                                      //                   deliverInterventionState)[
+                                      //               'textLabel'],
+                                      //         ), // [TODO: map task status accordingly based on projectBeneficiaries and tasks]
+                                      //         iconTextColor: getStatusAttributes(state,
+                                      //             deliverInterventionState)['color'],
+                                      //         iconColor: getStatusAttributes(state,
+                                      //             deliverInterventionState)['color'],
+                                      //       ),
+                                      //     ),
+                                      //   ),
+                                      // ),
 
-                                          final household = state
-                                              .householdMembers.first.household;
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: spacer2,
+                                          right: spacer2,
+                                        ),
+                                        child: BlocBuilder<
+                                                RegistrationWrapperBloc,
+                                                RegistrationWrapperState>(
+                                            builder: (ctx,
+                                                deliverInterventionState) {
+                                          bool shouldShowStatus =
+                                              beneficiaryType ==
+                                                  BeneficiaryType.household;
 
-                                          final projectBeneficiaryId = state
-                                              .householdMembers
-                                              .first
-                                              .projectBeneficiaries
-                                              ?.firstWhereOrNull((b) =>
-                                                  b.beneficiaryClientReferenceId ==
-                                                  e.clientReferenceId)
-                                              ?.clientReferenceId;
-
-                                          final projectBeneficiary = state
-                                              .householdMembers
-                                              .first
-                                              .projectBeneficiaries
-                                              ?.where(
-                                                (element) =>
-                                                    element
-                                                        .beneficiaryClientReferenceId ==
-                                                    (RegistrationDeliverySingleton()
-                                                                .beneficiaryType ==
-                                                            BeneficiaryType
-                                                                .individual
-                                                        ? e.clientReferenceId
-                                                        : state
-                                                            .householdMembers
-                                                            .first
-                                                            .household
-                                                            ?.clientReferenceId),
-                                              )
-                                              .toList();
-
-                                          final taskData = (projectBeneficiary ??
-                                                      [])
-                                                  .isNotEmpty
-                                              ? state.householdMembers
-                                                  .firstOrNull?.tasks
-                                                  ?.where((element) =>
-                                                      element
-                                                          .projectBeneficiaryClientReferenceId ==
-                                                      projectBeneficiary?.first
-                                                          .clientReferenceId)
-                                                  .toList()
-                                              : null;
-                                          final referralData =
-                                              (projectBeneficiary ?? [])
-                                                      .isNotEmpty
-                                                  ? state.householdMembers.first
-                                                      .referrals
-                                                      ?.where((element) =>
-                                                          element
-                                                              .projectBeneficiaryClientReferenceId ==
-                                                          projectBeneficiary
+                                          if (RegistrationDeliverySingleton()
+                                                  .householdType ==
+                                              HouseholdType.community) {
+                                            return Column(
+                                              children: [
+                                                DigitTableCard(element: {
+                                                  localizations.translate(i18
+                                                      .householdOverView
+                                                      .instituteNameLabel): state
+                                                          .householdMembers
+                                                          .first
+                                                          .household
+                                                          ?.address
+                                                          ?.buildingName ??
+                                                      localizations.translate(
+                                                          i18.common
+                                                              .coreCommonNA),
+                                                  localizations.translate(
+                                                    i18.deliverIntervention
+                                                        .memberCountText,
+                                                  ): state
+                                                      .householdMembers
+                                                      .first
+                                                      .household
+                                                      ?.memberCount,
+                                                  localizations.translate(
+                                                    i18.householdLocation
+                                                        .administrationAreaFormLabel,
+                                                  ): localizations.translate(
+                                                      state
+                                                              .householdMembers
+                                                              .first
+                                                              .headOfHousehold
+                                                              ?.address
                                                               ?.first
-                                                              .clientReferenceId)
-                                                      .toList()
-                                                  : null;
-                                          final sideEffectData = taskData !=
-                                                      null &&
-                                                  taskData.isNotEmpty
-                                              ? state.householdMembers.first
-                                                  .sideEffects
-                                                  ?.where((element) =>
-                                                      element
-                                                          .taskClientReferenceId ==
-                                                      taskData.lastOrNull
-                                                          ?.clientReferenceId)
-                                                  .toList()
-                                              : null;
+                                                              .locality
+                                                              ?.code ??
+                                                          i18.common
+                                                              .coreCommonNA),
+                                                }),
+                                              ],
+                                            );
+                                          }
 
-                                          final childBeneficiaries = (state
-                                                  .householdMembers
-                                                  .first
-                                                  .members
-                                                  ?.where((childMem) {
-                                                final parentBeneficiary = state
+                                          final headName = state
+                                              .householdMembers
+                                              .firstOrNull
+                                              ?.headOfHousehold
+                                              ?.name;
+                                          final fullName = [
+                                            headName?.givenName?.trim(),
+                                            headName?.familyName?.trim(),
+                                          ].whereNotNull().join(' ');
+
+                                          final displayName =
+                                              fullName.isNotEmpty
+                                                  ? fullName
+                                                  : localizations.translate(
+                                                      i18.common.coreCommonNA);
+
+                                          return overviewTemplate
+                                                      ?.properties?[
+                                                          registration_keys
+                                                              .householdOverViewKeys
+                                                              .detailsCardKey]
+                                                      ?.hidden !=
+                                                  true
+                                              ? Column(
+                                                  children: [
+                                                    DigitTableCard(
+                                                      element: buildEnumValueMap(
+                                                                  state
+                                                                      .householdMembers
+                                                                      .firstOrNull,
+                                                                  overviewTemplate
+                                                                      ?.properties?[registration_keys
+                                                                          .householdOverViewKeys
+                                                                          .detailsCardKey]
+                                                                      ?.enums,
+                                                                  selectedIndividual:
+                                                                      null)
+                                                              ?.map((k, v) => MapEntry(
+                                                                  localizations
+                                                                      .translate(
+                                                                          k),
+                                                                  localizations
+                                                                      .translate(
+                                                                          v.toString()))) ??
+                                                          {
+                                                            localizations.translate(i18
+                                                                    .householdOverView
+                                                                    .householdOverViewHouseholdHeadNameLabel):
+                                                                displayName,
+                                                            localizations
+                                                                .translate(
+                                                              i18.householdLocation
+                                                                  .administrationAreaFormLabel,
+                                                            ): localizations.translate(state
+                                                                    .householdMembers
+                                                                    .firstOrNull
+                                                                    ?.headOfHousehold
+                                                                    ?.address
+                                                                    ?.first
+                                                                    .locality
+                                                                    ?.code ??
+                                                                i18.common
+                                                                    .coreCommonNA),
+                                                            localizations
+                                                                .translate(
+                                                              i18.deliverIntervention
+                                                                  .memberCountText,
+                                                            ): state
+                                                                .householdMembers
+                                                                .firstOrNull
+                                                                ?.household
+                                                                ?.memberCount,
+                                                            if (shouldShowStatus)
+                                                              localizations.translate(i18
+                                                                      .beneficiaryDetails
+                                                                      .status):
+                                                                  localizations
+                                                                      .translate(
+                                                                getStatusAttributes(
+                                                                        state)[
+                                                                    'textLabel'],
+                                                              )
+                                                          },
+                                                    ),
+                                                  ],
+                                                )
+                                              : const SizedBox.shrink();
+                                        }),
+                                      ),
+                                      if (RegistrationDeliverySingleton()
+                                              .householdType ==
+                                          HouseholdType.community) ...[
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                              top: spacer2, bottom: spacer2),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: DigitSearchBar(
+                                                  controller: searchController,
+                                                  hintText:
+                                                      localizations.translate(
+                                                    i18.common.searchByName,
+                                                  ),
+                                                  textCapitalization:
+                                                      TextCapitalization.words,
+                                                  onChanged: (value) {
+                                                    if (value.length >= 3) {
+                                                      callReloadEvent(
+                                                          offset: 0, limit: 10);
+                                                    } else if (searchController
+                                                        .value.text.isEmpty) {
+                                                      callReloadEvent(
+                                                          offset: 0, limit: 10);
+                                                    }
+                                                  },
+                                                ),
+                                              ),
+                                              Column(
+                                                children: [
+                                                  getFilters()
+                                                      ? Align(
+                                                          alignment:
+                                                              Alignment.topLeft,
+                                                          child: Padding(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .all(
+                                                                    spacer2),
+                                                            child: DigitButton(
+                                                              label:
+                                                                  getFilterIconNLabel()[
+                                                                      'label'],
+                                                              size:
+                                                                  DigitButtonSize
+                                                                      .medium,
+                                                              type:
+                                                                  DigitButtonType
+                                                                      .tertiary,
+                                                              suffixIcon:
+                                                                  getFilterIconNLabel()[
+                                                                      'icon'],
+                                                              onPressed: () =>
+                                                                  showFilterDialog(),
+                                                            ),
+                                                          ),
+                                                        )
+                                                      : const Offstage(),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                      selectedFilters.isNotEmpty
+                                          ? Align(
+                                              alignment: Alignment.topLeft,
+                                              child: SizedBox(
+                                                height: MediaQuery.of(context)
+                                                        .size
+                                                        .height *
+                                                    0.06,
+                                                child: ListView.builder(
+                                                    shrinkWrap: true,
+                                                    scrollDirection:
+                                                        Axis.horizontal,
+                                                    itemCount:
+                                                        selectedFilters.length,
+                                                    itemBuilder:
+                                                        (context, index) {
+                                                      return Padding(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .all(spacer1),
+                                                        child: DigitChip(
+                                                          label:
+                                                              '${localizations.translate(getStatus(selectedFilters[index]))}'
+                                                              ' (${state.householdMembers.firstOrNull?.members?.length})',
+                                                          onItemDelete: () {
+                                                            selectedFilters.remove(
+                                                                selectedFilters[
+                                                                    index]);
+                                                            callReloadEvent(
+                                                                offset: 0,
+                                                                limit: 10);
+                                                          },
+                                                        ),
+                                                      );
+                                                    }),
+                                              ),
+                                            )
+                                          : const Offstage(),
+                                      Column(
+                                        children:
+                                            (state.householdMembers.firstOrNull
+                                                        ?.individuals
+                                                        ?.where((m) {
+                                                      // Identify if this member is a "child" in any other member's relationships
+                                                      final isChild = state
+                                                          .householdMembers
+                                                          .first
+                                                          .members
+                                                          ?.any((member) =>
+                                                              member.memberRelationships !=
+                                                                  null &&
+                                                              member
+                                                                  .memberRelationships!
+                                                                  .isNotEmpty &&
+                                                              member.individualClientReferenceId ==
+                                                                  m.clientReferenceId);
+
+                                                      return !(isChild ??
+                                                          false); // Only show if not a child
+                                                    }).toList() ??
+                                                    [])
+                                                .map(
+                                          (e) {
+                                            final isHead = state
                                                     .householdMembers
                                                     .first
-                                                    .members
+                                                    .headOfHousehold
+                                                    ?.clientReferenceId ==
+                                                e.clientReferenceId;
+
+                                            final household = state
+                                                .householdMembers
+                                                .first
+                                                .household;
+
+                                            final projectBeneficiaryId = state
+                                                .householdMembers
+                                                .first
+                                                .projectBeneficiaries
+                                                ?.firstWhereOrNull((b) =>
+                                                    b.beneficiaryClientReferenceId ==
+                                                    e.clientReferenceId)
+                                                ?.clientReferenceId;
+
+                                            final projectBeneficiary = state
+                                                .householdMembers
+                                                .first
+                                                .projectBeneficiaries
+                                                ?.where(
+                                                  (element) =>
+                                                      element
+                                                          .beneficiaryClientReferenceId ==
+                                                      (RegistrationDeliverySingleton()
+                                                                  .beneficiaryType ==
+                                                              BeneficiaryType
+                                                                  .individual
+                                                          ? e.clientReferenceId
+                                                          : state
+                                                              .householdMembers
+                                                              .first
+                                                              .household
+                                                              ?.clientReferenceId),
+                                                )
+                                                .toList();
+
+                                            final taskData = (projectBeneficiary ??
+                                                        [])
+                                                    .isNotEmpty
+                                                ? state.householdMembers
+                                                    .firstOrNull?.tasks
                                                     ?.where((element) =>
                                                         element
-                                                            .individualClientReferenceId ==
-                                                        e.clientReferenceId)
-                                                    .firstOrNull;
+                                                            .projectBeneficiaryClientReferenceId ==
+                                                        projectBeneficiary
+                                                            ?.first
+                                                            .clientReferenceId)
+                                                    .toList()
+                                                : null;
+                                            final referralData =
+                                                (projectBeneficiary ?? [])
+                                                        .isNotEmpty
+                                                    ? state.householdMembers
+                                                        .first.referrals
+                                                        ?.where((element) =>
+                                                            element
+                                                                .projectBeneficiaryClientReferenceId ==
+                                                            projectBeneficiary
+                                                                ?.first
+                                                                .clientReferenceId)
+                                                        .toList()
+                                                    : null;
+                                            final sideEffectData = taskData !=
+                                                        null &&
+                                                    taskData.isNotEmpty
+                                                ? state.householdMembers.first
+                                                    .sideEffects
+                                                    ?.where((element) =>
+                                                        element
+                                                            .taskClientReferenceId ==
+                                                        taskData.lastOrNull
+                                                            ?.clientReferenceId)
+                                                    .toList()
+                                                : null;
 
-                                                final isChild = state
+                                            final childBeneficiaries = (state
                                                     .householdMembers
                                                     .first
                                                     .members
-                                                    ?.any((member) =>
-                                                        member.individualClientReferenceId ==
-                                                            childMem
-                                                                .clientReferenceId &&
-                                                        (member.memberRelationships
-                                                                ?.any(
-                                                              (rel) =>
-                                                                  rel.relativeClientReferenceId ==
-                                                                  parentBeneficiary
-                                                                      ?.clientReferenceId,
-                                                            ) ??
-                                                            false));
-                                                return (isChild ??
-                                                    false); // Only include if it is a child
-                                              }).toList() ??
-                                              []);
+                                                    ?.where((childMem) {
+                                                  final parentBeneficiary = state
+                                                      .householdMembers
+                                                      .first
+                                                      .members
+                                                      ?.where((element) =>
+                                                          element
+                                                              .individualClientReferenceId ==
+                                                          e.clientReferenceId)
+                                                      .firstOrNull;
 
-                                          final ageInYears =
-                                              e.dateOfBirth != null
-                                                  ? DigitDateUtils.calculateAge(
-                                                      DigitDateUtils
-                                                              .getFormattedDateToDateTime(
-                                                            e.dateOfBirth!,
-                                                          ) ??
-                                                          DateTime.now(),
-                                                    ).years
-                                                  : 0;
-                                          final ageInMonths =
-                                              e.dateOfBirth != null
-                                                  ? DigitDateUtils.calculateAge(
-                                                      DigitDateUtils
-                                                              .getFormattedDateToDateTime(
-                                                            e.dateOfBirth!,
-                                                          ) ??
-                                                          DateTime.now(),
-                                                    ).months
-                                                  : 0;
-                                          final currentCycle =
-                                              RegistrationDeliverySingleton()
-                                                  .projectType
-                                                  ?.cycles
-                                                  ?.firstWhereOrNull(
-                                                    (e) =>
-                                                        (e.startDate) <
-                                                            DateTime.now()
-                                                                .millisecondsSinceEpoch &&
-                                                        (e.endDate) >
-                                                            DateTime.now()
-                                                                .millisecondsSinceEpoch,
-                                                  );
+                                                  final isChild = state
+                                                      .householdMembers
+                                                      .first
+                                                      .members
+                                                      ?.any((member) =>
+                                                          member.individualClientReferenceId ==
+                                                              childMem
+                                                                  .clientReferenceId &&
+                                                          (member.memberRelationships
+                                                                  ?.any(
+                                                                (rel) =>
+                                                                    rel.relativeClientReferenceId ==
+                                                                    parentBeneficiary
+                                                                        ?.clientReferenceId,
+                                                              ) ??
+                                                              false));
+                                                  return (isChild ??
+                                                      false); // Only include if it is a child
+                                                }).toList() ??
+                                                []);
 
-                                          final isBeneficiaryRefused =
-                                              checkIfBeneficiaryRefused(
-                                            taskData,
-                                          );
-                                          final isBeneficiaryReferred =
-                                              checkIfBeneficiaryReferred(
-                                            referralData,
-                                            currentCycle,
-                                          );
-
-                                          return MemberCard(
-                                            showAddChildAction: false,
-                                            isHead: isHead,
-                                            individual: e,
-                                            deliveryButtonLabel:
-                                                overviewTemplate
-                                                    ?.properties?[
-                                                        registration_keys
-                                                            .commonKeys
-                                                            .primaryButtonKey]
-                                                    ?.label,
-                                            household: household,
-                                            // children: childBeneficiaries,
-                                            projectBeneficiaries:
-                                                projectBeneficiary ?? [],
-                                            tasks: taskData,
-                                            sideEffects: sideEffectData,
-                                            editMemberActionProperties:
-                                                overviewTemplate?.properties?[
-                                                    registration_keys
-                                                        .householdOverViewKeys
-                                                        .editIndividualKey],
-                                            primaryButtonProperties:
-                                                overviewTemplate?.properties?[
-                                                    registration_keys
-                                                        .householdOverViewKeys
-                                                        .individualPrimaryButtonKey],
-                                            secondaryButtonProperties:
-                                                overviewTemplate?.properties?[
-                                                    registration_keys
-                                                        .householdOverViewKeys
-                                                        .individualSecondaryButtonKey],
-                                            editMemberAction: () async {
-                                              context
-                                                  .read<
-                                                      RegistrationWrapperBloc>()
-                                                  .add(
-                                                    RegistrationWrapperEvent
-                                                        .updateSelectedIndividual(
-                                                      individualClientReferenceId:
-                                                          e.clientReferenceId,
-                                                    ),
-                                                  );
-                                              Navigator.of(context,
-                                                      rootNavigator: true)
-                                                  .pop();
-                                              final mapper = ReverseFormMapper(
-                                                formConfig: jsonConfig[
-                                                    'individualRegistration']!,
-                                                modelInstances: [e],
-                                              );
-
-                                              final formData =
-                                                  mapper.buildFormData();
-
-                                              final pageName = context
-                                                  .read<FormsBloc>()
-                                                  .state
-                                                  .cachedSchemas['ADDMEMBERFLOW']
-                                                  ?.pages
-                                                  .entries
-                                                  .first
-                                                  .key;
-
-                                              context.router
-                                                  .push(FormsRenderRoute(
-                                                isEdit: true,
-                                                currentSchemaKey: 'ADDMEMBERFLOW',
-                                                pageName: pageName!,
-
-                                                /// as registration is there assuming form won't be null
-                                                defaultValues: {
-                                                  ...formData,
-                                                  'administrativeArea':
-                                                      localizations.translate(
-                                                          RegistrationDeliverySingleton()
-                                                                  .boundary
-                                                                  ?.code ??
-                                                              ''),
-                                                },
-                                              ));
-                                              //TODO: need to add logic for edit member
-                                            },
-                                            setAsHeadAction: () {
-                                              /// TODO: need to add event in wrapper class for head change
-
-                                              Navigator.of(
-                                                context,
-                                                rootNavigator: true,
-                                              ).pop();
-                                            },
-                                            deleteMemberAction: () {
-                                              showCustomPopup(
-                                                context: ctx,
-                                                builder: (BuildContext
-                                                        context) =>
-                                                    Popup(
-                                                        title: localizations
-                                                            .translate(i18
-                                                                .householdOverView
-                                                                .householdOverViewActionCardTitle),
-                                                        type: PopUpType.simple,
-                                                        actions: [
-                                                      DigitButton(
-                                                          label: localizations
-                                                              .translate(i18
-                                                                  .householdOverView
-                                                                  .householdOverViewPrimaryActionLabel),
-                                                          onPressed: () {
-                                                            Navigator.of(
-                                                              context,
-                                                              rootNavigator:
-                                                                  true,
-                                                            )
-                                                              ..pop()
-                                                              ..pop();
-
-                                                            /// TODO: Need to add logic for deleting a household
-                                                          },
-                                                          type: DigitButtonType
-                                                              .primary,
-                                                          size: DigitButtonSize
-                                                              .large),
-                                                      DigitButton(
-                                                          label: localizations
-                                                              .translate(i18
-                                                                  .householdOverView
-                                                                  .householdOverViewSecondaryActionLabel),
-                                                          onPressed: () {
-                                                            Navigator.of(
-                                                              context,
-                                                              rootNavigator:
-                                                                  true,
-                                                            ).pop();
-                                                          },
-                                                          type: DigitButtonType
-                                                              .tertiary,
-                                                          size: DigitButtonSize
-                                                              .large)
-                                                    ]),
-                                              );
-                                            },
-                                            isNotEligible: RegistrationDeliverySingleton()
-                                                        .projectType
-                                                        ?.cycles !=
+                                            final ageInYears = e.dateOfBirth !=
                                                     null
-                                                ? (!checkEligibilityForAgeAndSideEffect(
-                                                      DigitDOBAgeConvertor(
-                                                        years: ageInYears,
-                                                        months: ageInMonths,
+                                                ? DigitDateUtils.calculateAge(
+                                                    DigitDateUtils
+                                                            .getFormattedDateToDateTime(
+                                                          e.dateOfBirth!,
+                                                        ) ??
+                                                        DateTime.now(),
+                                                  ).years
+                                                : 0;
+                                            final ageInMonths = e.dateOfBirth !=
+                                                    null
+                                                ? DigitDateUtils.calculateAge(
+                                                    DigitDateUtils
+                                                            .getFormattedDateToDateTime(
+                                                          e.dateOfBirth!,
+                                                        ) ??
+                                                        DateTime.now(),
+                                                  ).months
+                                                : 0;
+                                            final currentCycle =
+                                                RegistrationDeliverySingleton()
+                                                    .projectType
+                                                    ?.cycles
+                                                    ?.firstWhereOrNull(
+                                                      (e) =>
+                                                          (e.startDate) <
+                                                              DateTime.now()
+                                                                  .millisecondsSinceEpoch &&
+                                                          (e.endDate) >
+                                                              DateTime.now()
+                                                                  .millisecondsSinceEpoch,
+                                                    );
+
+                                            final isBeneficiaryRefused =
+                                                checkIfBeneficiaryRefused(
+                                              taskData,
+                                            );
+                                            final isBeneficiaryReferred =
+                                                checkIfBeneficiaryReferred(
+                                              referralData,
+                                              currentCycle,
+                                            );
+
+                                            return MemberCard(
+                                              showAddChildAction: false,
+                                              isHead: isHead,
+                                              individual: e,
+                                              deliveryButtonLabel:
+                                                  overviewTemplate
+                                                      ?.properties?[
+                                                          registration_keys
+                                                              .commonKeys
+                                                              .primaryButtonKey]
+                                                      ?.label,
+                                              household: household,
+                                              // children: childBeneficiaries,
+                                              projectBeneficiaries:
+                                                  projectBeneficiary ?? [],
+                                              tasks: taskData,
+                                              sideEffects: sideEffectData,
+                                              editMemberActionProperties:
+                                                  overviewTemplate?.properties?[
+                                                      registration_keys
+                                                          .householdOverViewKeys
+                                                          .editIndividualKey],
+                                              primaryButtonProperties:
+                                                  overviewTemplate?.properties?[
+                                                      registration_keys
+                                                          .householdOverViewKeys
+                                                          .individualPrimaryButtonKey],
+                                              secondaryButtonProperties:
+                                                  overviewTemplate?.properties?[
+                                                      registration_keys
+                                                          .householdOverViewKeys
+                                                          .individualSecondaryButtonKey],
+                                              editMemberAction: () async {
+                                                context
+                                                    .read<
+                                                        RegistrationWrapperBloc>()
+                                                    .add(
+                                                      RegistrationWrapperEvent
+                                                          .updateSelectedIndividual(
+                                                        individualClientReferenceId:
+                                                            e.clientReferenceId,
                                                       ),
-                                                      RegistrationDeliverySingleton()
-                                                          .projectType,
-                                                      (taskData ?? [])
-                                                              .isNotEmpty
-                                                          ? taskData?.lastOrNull
-                                                          : null,
-                                                      sideEffectData,
-                                                    )) ||
-                                                    ((taskData ?? []).isNotEmpty
-                                                        ? (taskData ?? [])
-                                                                .isNotEmpty &&
-                                                            taskData?.last
-                                                                    .status ==
-                                                                Status
-                                                                    .ineligible
-                                                                    .toValue()
-                                                                    .toString()
-                                                        : !checkEligibilityForAgeAndSideEffect(
-                                                            DigitDOBAgeConvertor(
-                                                              years: ageInYears,
-                                                              months:
-                                                                  ageInMonths,
-                                                            ),
+                                                    );
+                                                Navigator.of(context,
+                                                        rootNavigator: true)
+                                                    .pop();
+                                                final mapper =
+                                                    ReverseFormMapper(
+                                                  formConfig: jsonConfig[
+                                                      'individualRegistration']!,
+                                                  modelInstances: [e],
+                                                );
+
+                                                final formData =
+                                                    mapper.buildFormData();
+
+                                                final pageName = context
+                                                    .read<FormsBloc>()
+                                                    .state
+                                                    .cachedSchemas[
+                                                        'ADDMEMBERFLOW']
+                                                    ?.pages
+                                                    .entries
+                                                    .first
+                                                    .key;
+
+                                                context.router
+                                                    .push(FormsRenderRoute(
+                                                  isEdit: true,
+                                                  currentSchemaKey:
+                                                      'ADDMEMBERFLOW',
+                                                  pageName: pageName!,
+
+                                                  /// as registration is there assuming form won't be null
+                                                  defaultValues: {
+                                                    ...formData,
+                                                    'administrativeArea':
+                                                        localizations.translate(
                                                             RegistrationDeliverySingleton()
-                                                                .projectType,
-                                                            (taskData ?? [])
-                                                                    .isNotEmpty
-                                                                ? taskData
-                                                                    ?.lastOrNull
-                                                                : null,
-                                                            sideEffectData,
-                                                          ))
-                                                : false,
-                                            name: [
-                                              e.name?.givenName?.trim(),
-                                              e.name?.familyName?.trim(),
-                                            ]
-                                                .where((name) =>
-                                                    name != null &&
-                                                    name.isNotEmpty)
-                                                .join(' '),
-                                            years: (e.dateOfBirth == null
-                                                ? null
-                                                : DigitDateUtils.calculateAge(
-                                                    DigitDateUtils
-                                                            .getFormattedDateToDateTime(
-                                                          e.dateOfBirth!,
-                                                        ) ??
-                                                        DateTime.now(),
-                                                  ).years),
-                                            months: (e.dateOfBirth == null
-                                                ? null
-                                                : DigitDateUtils.calculateAge(
-                                                    DigitDateUtils
-                                                            .getFormattedDateToDateTime(
-                                                          e.dateOfBirth!,
-                                                        ) ??
-                                                        DateTime.now(),
-                                                  ).months),
-                                            gender: e.gender?.name,
-                                            isBeneficiaryRefused:
-                                                isBeneficiaryRefused &&
-                                                    !checkStatus(
-                                                      taskData,
-                                                      currentCycle,
-                                                    ),
-                                            isBeneficiaryReferred:
-                                                isBeneficiaryReferred,
-                                            isDelivered: taskData == null
-                                                ? false
-                                                : taskData.isNotEmpty &&
-                                                        !checkStatus(
-                                                          taskData,
-                                                          currentCycle,
-                                                        )
-                                                    ? true
-                                                    : false,
-                                            localizations: localizations,
-                                            projectBeneficiaryClientReferenceId:
-                                                projectBeneficiaryId,
-                                          );
-                                        },
-                                      ).toList(),
-                                    ),
-                                  ],
-                                ),
-                                Offstage(
-                                  offstage: overviewTemplate
-                                          ?.properties?[registration_keys
-                                              .householdOverViewKeys
-                                              .addMemberKey]
-                                          ?.hidden ??
-                                      false,
-                                  child: DigitButton(
-                                    mainAxisSize: MainAxisSize.max,
-                                    onPressed: () => addIndividual(
-                                      context,
-                                      state,
-                                    ),
-                                    label: localizations.translate(
-                                      overviewTemplate
-                                              ?.properties?[registration_keys
-                                                  .householdOverViewKeys
-                                                  .addMemberKey]
-                                              ?.label ??
-                                          i18.householdOverView
-                                              .householdOverViewAddActionText,
-                                    ),
-                                    prefixIcon: Icons.add_circle,
-                                    type: DigitButtonType.tertiary,
-                                    size: DigitButtonSize.large,
+                                                                    .boundary
+                                                                    ?.code ??
+                                                                ''),
+                                                  },
+                                                ));
+                                                //TODO: need to add logic for edit member
+                                              },
+                                              setAsHeadAction: () {
+                                                /// TODO: need to add event in wrapper class for head change
+
+                                                Navigator.of(
+                                                  context,
+                                                  rootNavigator: true,
+                                                ).pop();
+                                              },
+                                              deleteMemberAction: () {
+                                                showCustomPopup(
+                                                  context: ctx,
+                                                  builder: (BuildContext
+                                                          context) =>
+                                                      Popup(
+                                                          title: localizations
+                                                              .translate(i18
+                                                                  .householdOverView
+                                                                  .householdOverViewActionCardTitle),
+                                                          type:
+                                                              PopUpType.simple,
+                                                          actions: [
+                                                        DigitButton(
+                                                            label: localizations
+                                                                .translate(i18
+                                                                    .householdOverView
+                                                                    .householdOverViewPrimaryActionLabel),
+                                                            onPressed: () {
+                                                              Navigator.of(
+                                                                context,
+                                                                rootNavigator:
+                                                                    true,
+                                                              )
+                                                                ..pop()
+                                                                ..pop();
+
+                                                              /// TODO: Need to add logic for deleting a household
+                                                            },
+                                                            type:
+                                                                DigitButtonType
+                                                                    .primary,
+                                                            size:
+                                                                DigitButtonSize
+                                                                    .large),
+                                                        DigitButton(
+                                                            label: localizations
+                                                                .translate(i18
+                                                                    .householdOverView
+                                                                    .householdOverViewSecondaryActionLabel),
+                                                            onPressed: () {
+                                                              Navigator.of(
+                                                                context,
+                                                                rootNavigator:
+                                                                    true,
+                                                              ).pop();
+                                                            },
+                                                            type:
+                                                                DigitButtonType
+                                                                    .tertiary,
+                                                            size:
+                                                                DigitButtonSize
+                                                                    .large)
+                                                      ]),
+                                                );
+                                              },
+                                              isNotEligible: RegistrationDeliverySingleton()
+                                                          .projectType
+                                                          ?.cycles !=
+                                                      null
+                                                  ? (!checkEligibilityForAgeAndSideEffect(
+                                                        DigitDOBAgeConvertor(
+                                                          years: ageInYears,
+                                                          months: ageInMonths,
+                                                        ),
+                                                        RegistrationDeliverySingleton()
+                                                            .projectType,
+                                                        (taskData ?? [])
+                                                                .isNotEmpty
+                                                            ? taskData
+                                                                ?.lastOrNull
+                                                            : null,
+                                                        sideEffectData,
+                                                      )) ||
+                                                      ((taskData ?? [])
+                                                              .isNotEmpty
+                                                          ? (taskData ?? [])
+                                                                  .isNotEmpty &&
+                                                              taskData?.last
+                                                                      .status ==
+                                                                  Status
+                                                                      .ineligible
+                                                                      .toValue()
+                                                                      .toString()
+                                                          : !checkEligibilityForAgeAndSideEffect(
+                                                              DigitDOBAgeConvertor(
+                                                                years:
+                                                                    ageInYears,
+                                                                months:
+                                                                    ageInMonths,
+                                                              ),
+                                                              RegistrationDeliverySingleton()
+                                                                  .projectType,
+                                                              (taskData ?? [])
+                                                                      .isNotEmpty
+                                                                  ? taskData
+                                                                      ?.lastOrNull
+                                                                  : null,
+                                                              sideEffectData,
+                                                            ))
+                                                  : false,
+                                              name: [
+                                                e.name?.givenName?.trim(),
+                                                e.name?.familyName?.trim(),
+                                              ]
+                                                  .where((name) =>
+                                                      name != null &&
+                                                      name.isNotEmpty)
+                                                  .join(' '),
+                                              years: (e.dateOfBirth == null
+                                                  ? null
+                                                  : DigitDateUtils.calculateAge(
+                                                      DigitDateUtils
+                                                              .getFormattedDateToDateTime(
+                                                            e.dateOfBirth!,
+                                                          ) ??
+                                                          DateTime.now(),
+                                                    ).years),
+                                              months: (e.dateOfBirth == null
+                                                  ? null
+                                                  : DigitDateUtils.calculateAge(
+                                                      DigitDateUtils
+                                                              .getFormattedDateToDateTime(
+                                                            e.dateOfBirth!,
+                                                          ) ??
+                                                          DateTime.now(),
+                                                    ).months),
+                                              gender: e.gender?.name,
+                                              isBeneficiaryRefused:
+                                                  isBeneficiaryRefused &&
+                                                      !checkStatus(
+                                                        taskData,
+                                                        currentCycle,
+                                                      ),
+                                              isBeneficiaryReferred:
+                                                  isBeneficiaryReferred,
+                                              isDelivered: taskData == null
+                                                  ? false
+                                                  : taskData.isNotEmpty &&
+                                                          !checkStatus(
+                                                            taskData,
+                                                            currentCycle,
+                                                          )
+                                                      ? true
+                                                      : false,
+                                              localizations: localizations,
+                                              projectBeneficiaryClientReferenceId:
+                                                  projectBeneficiaryId,
+                                            );
+                                          },
+                                        ).toList(),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ]),
-                        ),
-                      ],
+                                  Offstage(
+                                    offstage: overviewTemplate
+                                            ?.properties?[registration_keys
+                                                .householdOverViewKeys
+                                                .addMemberKey]
+                                            ?.hidden ??
+                                        false,
+                                    child: DigitButton(
+                                      mainAxisSize: MainAxisSize.max,
+                                      onPressed: () => addIndividual(
+                                        context,
+                                        state,
+                                      ),
+                                      label: localizations.translate(
+                                        overviewTemplate
+                                                ?.properties?[registration_keys
+                                                    .householdOverViewKeys
+                                                    .addMemberKey]
+                                                ?.label ??
+                                            i18.householdOverView
+                                                .householdOverViewAddActionText,
+                                      ),
+                                      prefixIcon: Icons.add_circle,
+                                      type: DigitButtonType.tertiary,
+                                      size: DigitButtonSize.large,
+                                    ),
+                                  ),
+                                ]),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -1272,6 +1475,54 @@ class _HouseholdOverviewPageState
     HouseholdModel household = state.householdMembers.first.household!;
     IndividualModel headOfHousehold =
         state.householdMembers.first.headOfHousehold!;
+    context.read<UniqueIdBloc>().add(const UniqueIdEvent.fetchIdCount());
+    // final pageName = context
+    //     .read<FormsBloc>()
+    //     .state
+    //     .cachedSchemas["ADDMEMBERFLOW"]
+    //     ?.pages
+    //     .entries
+    //     .first
+    //     .key;
+    //
+    // if (pageName == null) {
+    //   Toast.showToast(
+    //     context,
+    //     message: localizations.translate('NO_FORM_FOUND_FOR_REGISTRATION'),
+    //     type: ToastType.error,
+    //   );
+    // } else {
+    //   final uniqueIdState = context.read<UniqueIdBloc>().state;
+    //   String? currentUniqueId;
+    //
+    //   uniqueIdState.maybeWhen(
+    //     orElse: () {},
+    //     idCount: (availableIdCount, totalCount, uniqueId) {
+    //       currentUniqueId = uniqueId?.id;
+    //     },
+    //   );
+    //
+    //   context.router.push(FormsRenderRoute(
+    //     currentSchemaKey: "ADDMEMBERFLOW",
+    //     pageName: pageName,
+    //     defaultValues: {
+    //       'administrativeArea': localizations
+    //           .translate(RegistrationDeliverySingleton().boundary?.code ?? ''),
+    //       // 'phone': headOfHousehold.mobileNumber,
+    //       'availableIDs': {
+    //         'DEFAULT': IdGen.instance.identifier,
+    //         'UNIQUE_BENEFICIARY_ID': currentUniqueId,
+    //       },
+    //     },
+    //   ));
+    // }
+  }
+
+  void _navigateToAddMemberForm(
+    BuildContext context,
+    RegistrationWrapperState state,
+    UniqueIdPoolModel? currentUniqueId,
+  ) {
     final pageName = context
         .read<FormsBloc>()
         .state
@@ -1288,27 +1539,18 @@ class _HouseholdOverviewPageState
         type: ToastType.error,
       );
     } else {
-      final uniqueIdState = context.read<UniqueIdBloc>().state;
-      String? currentUniqueId;
-
-      uniqueIdState.maybeWhen(
-        orElse: () {},
-        idCount: (availableIdCount, totalCount, uniqueId) {
-          currentUniqueId = uniqueId?.id;
-        },
-      );
-
       context.router.push(FormsRenderRoute(
         currentSchemaKey: "ADDMEMBERFLOW",
         pageName: pageName,
         defaultValues: {
-          'administrativeArea': localizations
-              .translate(RegistrationDeliverySingleton().boundary?.code ?? ''),
-          // 'phone': headOfHousehold.mobileNumber,
+          'administrativeArea': localizations.translate(
+            RegistrationDeliverySingleton().boundary?.code ?? '',
+          ),
           'availableIDs': {
             'DEFAULT': IdGen.instance.identifier,
-            'UNIQUE_BENEFICIARY_ID': currentUniqueId,
+            'UNIQUE_BENEFICIARY_ID': currentUniqueId?.id,
           },
+          'eToken': currentUniqueId?.id ?? "",
         },
       ));
     }

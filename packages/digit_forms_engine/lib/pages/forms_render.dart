@@ -122,7 +122,6 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                             for (final key in currentKeys) {
                               final control = formGroup.control(key);
                               control.markAsTouched();
-                              // control.updateValueAndValidity();
                             }
 
                             final hasErrors = currentKeys.any((key) {
@@ -160,31 +159,32 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                               ),
                             );
 
-                            // Persist the freshly updated current page into the cached schema
+                            // Create the updated schema object with current page values
+                            final updatedSchemaObject = schemaObject.copyWith(
+                              pages: Map.fromEntries(
+                                schemaObject.pages.entries.map(
+                                  (entry) => MapEntry(
+                                    entry.key,
+                                    entry.key == widget.pageName
+                                        ? updatedPropertySchema
+                                        : entry.value,
+                                  ),
+                                ),
+                              ),
+                            );
+
+                            // Persist the updated schema
                             context.read<FormsBloc>().add(
                                   FormsUpdateEvent(
                                     schemaKey: widget.currentSchemaKey,
-                                    schema: schemaObject.copyWith(
-                                      pages: Map.fromEntries(
-                                        schemaObject.pages.entries.map(
-                                          (entry) => MapEntry(
-                                            entry.key,
-                                            entry.key == widget.pageName
-                                                ? updatedPropertySchema
-                                                : entry.value,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                    schema: updatedSchemaObject,
                                   ),
                                 );
 
+                            // Build context for visibility evaluation
                             final mergedPages =
                                 Map<String, PropertySchema>.from(
-                                    schemaObject.pages);
-                            mergedPages[widget.pageName] =
-                                updatedPropertySchema;
-
+                                    updatedSchemaObject.pages);
                             final contextValue =
                                 buildVisibilityEvaluationContext(
                               currentPageKey: widget.pageName,
@@ -193,15 +193,14 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                             );
 
                             // ------- CONDITIONAL NAVIGATION DECISION -------
-                            final currentPage =
-                                schemaObject.pages.entries.elementAt(index);
+                            final currentPage = updatedSchemaObject
+                                .pages.entries
+                                .elementAt(index);
                             final conditionalNavigateList =
                                 currentPage.value.conditionalNavigateTo;
 
                             if (conditionalNavigateList != null &&
                                 conditionalNavigateList.isNotEmpty) {
-                              // Build a merged pages map so evaluator sees freshest values
-
                               for (final conditionItem
                                   in conditionalNavigateList) {
                                 final condition = conditionItem.condition;
@@ -216,11 +215,7 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                                   final targetPageType =
                                       navigateTo.type.toLowerCase();
 
-                                  // Rule for conditional:
-                                  // - If type == 'form' -> navigate to that form page (continue flow)
-                                  // - Else (template/summary/submit/unknown) -> treat current as last:
-                                  //      -> if schemaObject.summary == true, go to Summary widget
-                                  //      -> else submit and close the flow
+                                  // If type == 'form' -> navigate to that form page
                                   if (targetPageType == 'form' &&
                                       targetPageName.isNotEmpty) {
                                     context.router.push(FormsRenderRoute(
@@ -231,9 +226,12 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                                       defaultValues: widget.defaultValues,
                                       isView: widget.isView,
                                     ));
-                                    return; // Skip default logic
+                                    return;
                                   } else {
-                                    final sortedEntries = schemaObject
+                                    // NON-FORM TARGET (template/summary/submit/unknown)
+
+                                    // Get the last page for stamping navigateTo if needed
+                                    final sortedEntries = updatedSchemaObject
                                         .pages.entries
                                         .toList()
                                       ..sort((a, b) => (a.value.order ?? 0)
@@ -242,16 +240,16 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                                         ? sortedEntries.last.key
                                         : widget.pageName;
 
+                                    // Update schema with stamped navigateTo
                                     final schemaWithStampedLast =
-                                        schemaObject.copyWith(
+                                        updatedSchemaObject.copyWith(
                                       pages: Map.fromEntries(
-                                        schemaObject.pages.entries.map(
+                                        updatedSchemaObject.pages.entries.map(
                                           (e) => MapEntry(
                                             e.key,
                                             e.key == realLastKey
                                                 ? e.value.copyWith(
-                                                    navigateTo:
-                                                        navigateTo) // <-- stamp it
+                                                    navigateTo: navigateTo)
                                                 : e.value,
                                           ),
                                         ),
@@ -265,8 +263,109 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                                           ),
                                         );
 
-                                    if (schemaObject.summary) {
-                                      // Go to Summary widget
+                                    // PRIORITY 1: Check for showAlertPopUp
+                                    if (updatedSchemaObject.showAlertPopUp !=
+                                        null) {
+                                      showCustomPopup(
+                                        context: context,
+                                        builder: (BuildContext ctx) => Popup(
+                                          title: resolveTemplate(
+                                            localizations.translate(
+                                                updatedSchemaObject
+                                                    .showAlertPopUp!.title),
+                                            updatedSchemaObject
+                                                .showAlertPopUp?.conditions,
+                                            contextValue,
+                                          )!,
+                                          description: resolveTemplate(
+                                            localizations.translate(
+                                                updatedSchemaObject
+                                                        .showAlertPopUp
+                                                        ?.description ??
+                                                    ""),
+                                            updatedSchemaObject
+                                                .showAlertPopUp?.conditions,
+                                            contextValue,
+                                          ),
+                                          actions: [
+                                            DigitButton(
+                                              label: localizations.translate(
+                                                updatedSchemaObject
+                                                    .showAlertPopUp!
+                                                    .primaryActionLabel,
+                                              ),
+                                              onPressed: () {
+                                                // Close popup first
+                                                Navigator.of(ctx,
+                                                        rootNavigator: true)
+                                                    .pop();
+
+                                                // Handle navigation based on conditionalNavigateTo target
+                                                if (targetPageType ==
+                                                    'summary') {
+                                                  // Navigate to summary page
+                                                  context.router
+                                                      .push(FormsRenderRoute(
+                                                    customComponents:
+                                                        widget.customComponents,
+                                                    currentSchemaKey:
+                                                        widget.currentSchemaKey,
+                                                    pageName: '',
+                                                    isEdit: widget.isEdit,
+                                                    isSummary: true,
+                                                    defaultValues:
+                                                        widget.defaultValues,
+                                                    isView: widget.isView,
+                                                  ));
+                                                } else {
+                                                  // Submit and close for template/submit/other
+                                                  if (widget.isView == false) {
+                                                    context
+                                                        .read<FormsBloc>()
+                                                        .add(
+                                                          FormsSubmitEvent(
+                                                            isEdit:
+                                                                widget.isEdit,
+                                                            schemaKey: widget
+                                                                .currentSchemaKey,
+                                                            isView:
+                                                                widget.isView,
+                                                          ),
+                                                        );
+                                                  }
+                                                  context.router
+                                                      .popUntil((route) {
+                                                    return route
+                                                            .settings.name !=
+                                                        FormsRenderRoute.name;
+                                                  });
+                                                }
+                                              },
+                                              type: DigitButtonType.primary,
+                                              size: DigitButtonSize.large,
+                                            ),
+                                            DigitButton(
+                                              label: localizations.translate(
+                                                updatedSchemaObject
+                                                    .showAlertPopUp!
+                                                    .secondaryActionLabel,
+                                              ),
+                                              onPressed: () {
+                                                Navigator.of(ctx,
+                                                        rootNavigator: true)
+                                                    .pop();
+                                              },
+                                              type: DigitButtonType.secondary,
+                                              size: DigitButtonSize.large,
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    // NO POPUP - Handle navigation directly based on conditionalNavigateTo target
+                                    if (targetPageType == 'summary') {
                                       context.router.push(FormsRenderRoute(
                                         customComponents:
                                             widget.customComponents,
@@ -279,7 +378,7 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                                         isView: widget.isView,
                                       ));
                                     } else {
-                                      // Submit & close flow
+                                      // Submit and close
                                       if (widget.isView == false) {
                                         context.read<FormsBloc>().add(
                                               FormsSubmitEvent(
@@ -302,25 +401,25 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                             }
                             // ------- END CONDITIONAL NAVIGATION DECISION -------
 
-                            // ------- DEFAULT FLOW (UNCHANGED) -------
-                            final pagesMap = schemaObject.pages;
+                            // ------- DEFAULT FLOW (No conditional navigation matched) -------
+                            final pagesMap = updatedSchemaObject.pages;
                             final currentPageKey =
                                 pagesMap.entries.elementAt(index).key;
                             final currentOrder =
                                 pagesMap[currentPageKey]?.order ?? 0;
 
-                            // Find the next page with an integer order > currentOrder.floor()
+                            // Find the next page with an integer order > currentOrder
                             final nextPageEntry = pagesMap.entries.where((e) {
                               final order = e.value.order;
                               return order != null &&
                                   order > currentOrder &&
-                                  order % 1 ==
-                                      0; // Only integers (e.g. 6.0, not 5.1)
+                                  order % 1 == 0; // Only integers
                             }).toList()
                               ..sort((a, b) =>
                                   a.value.order!.compareTo(b.value.order!));
 
                             if (nextPageEntry.isNotEmpty) {
+                              // There's a next page - navigate to it
                               context.router.push(FormsRenderRoute(
                                 isEdit: widget.isEdit,
                                 customComponents: widget.customComponents,
@@ -330,9 +429,94 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                                 isView: widget.isView,
                               ));
                             } else {
-                              // "Real" last page by order
-                              if (schemaObject.summary) {
-                                // Go to Summary widget when summary is enabled
+                              // This is the last page - check what to do
+
+                              // PRIORITY 1: Check for showAlertPopUp
+                              if (updatedSchemaObject.showAlertPopUp != null) {
+                                showCustomPopup(
+                                  context: context,
+                                  builder: (BuildContext ctx) => Popup(
+                                    title: resolveTemplate(
+                                      localizations.translate(
+                                          updatedSchemaObject
+                                              .showAlertPopUp!.title),
+                                      updatedSchemaObject
+                                          .showAlertPopUp?.conditions,
+                                      contextValue,
+                                    )!,
+                                    description: resolveTemplate(
+                                      localizations.translate(
+                                          updatedSchemaObject.showAlertPopUp
+                                                  ?.description ??
+                                              ""),
+                                      updatedSchemaObject
+                                          .showAlertPopUp?.conditions,
+                                      contextValue,
+                                    ),
+                                    actions: [
+                                      DigitButton(
+                                        label: localizations.translate(
+                                          updatedSchemaObject.showAlertPopUp!
+                                              .primaryActionLabel,
+                                        ),
+                                        onPressed: () {
+                                          // Close popup
+                                          Navigator.of(ctx, rootNavigator: true)
+                                              .pop();
+
+                                          // PRIORITY 2: Check summary flag
+                                          if (updatedSchemaObject.summary) {
+                                            context.router
+                                                .push(FormsRenderRoute(
+                                              customComponents:
+                                                  widget.customComponents,
+                                              currentSchemaKey:
+                                                  widget.currentSchemaKey,
+                                              pageName: '',
+                                              isEdit: widget.isEdit,
+                                              isSummary: true,
+                                              defaultValues:
+                                                  widget.defaultValues,
+                                              isView: widget.isView,
+                                            ));
+                                          } else {
+                                            // Submit and close
+                                            if (widget.isView == false) {
+                                              context.read<FormsBloc>().add(
+                                                    FormsSubmitEvent(
+                                                      isEdit: widget.isEdit,
+                                                      schemaKey: widget
+                                                          .currentSchemaKey,
+                                                      isView: widget.isView,
+                                                    ),
+                                                  );
+                                            }
+                                            context.router.popUntil((route) {
+                                              return route.settings.name !=
+                                                  FormsRenderRoute.name;
+                                            });
+                                          }
+                                        },
+                                        type: DigitButtonType.primary,
+                                        size: DigitButtonSize.large,
+                                      ),
+                                      DigitButton(
+                                        label: localizations.translate(
+                                          updatedSchemaObject.showAlertPopUp!
+                                              .secondaryActionLabel,
+                                        ),
+                                        onPressed: () {
+                                          Navigator.of(ctx, rootNavigator: true)
+                                              .pop();
+                                        },
+                                        type: DigitButtonType.secondary,
+                                        size: DigitButtonSize.large,
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              } else if (updatedSchemaObject.summary) {
+                                // PRIORITY 2: No popup, but summary is enabled
                                 context.router.push(FormsRenderRoute(
                                   customComponents: widget.customComponents,
                                   currentSchemaKey: widget.currentSchemaKey,
@@ -343,84 +527,20 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                                   isView: widget.isView,
                                 ));
                               } else {
-                                if (schemaObject.showAlertPopUp != null) {
-                                  showCustomPopup(
-                                    context: context,
-                                    builder: (BuildContext ctx) => Popup(
-                                        title: resolveTemplate(
-                                            localizations.translate(schemaObject
-                                                .showAlertPopUp!.title),
-                                            schemaObject
-                                                .showAlertPopUp?.conditions,
-                                            contextValue)!,
-                                        description: resolveTemplate(
-                                            localizations.translate(schemaObject
-                                                    .showAlertPopUp
-                                                    ?.description ??
-                                                ""),
-                                            schemaObject
-                                                .showAlertPopUp?.conditions,
-                                            contextValue),
-                                        actions: [
-                                          DigitButton(
-                                              label: localizations.translate(
-                                                  schemaObject.showAlertPopUp!
-                                                      .primaryActionLabel),
-                                              onPressed: () {
-                                                // Submit & close
-                                                if (widget.isView == false) {
-                                                  context
-                                                      .read<FormsBloc>()
-                                                      .add(FormsSubmitEvent(
-                                                        isEdit: widget.isEdit,
-                                                        schemaKey: widget
-                                                            .currentSchemaKey,
-                                                        isView: widget.isView,
-                                                      ));
-                                                }
-                                                // Pop all form pages (FormsRenderRoute)
-                                                Navigator.of(
-                                                  ctx,
-                                                  rootNavigator: true,
-                                                ).pop();
-                                                context.router
-                                                    .popUntil((route) {
-                                                  return route.settings.name !=
-                                                      FormsRenderRoute.name;
-                                                });
-                                              },
-                                              type: DigitButtonType.primary,
-                                              size: DigitButtonSize.large),
-                                          DigitButton(
-                                              label: localizations.translate(
-                                                  schemaObject.showAlertPopUp!
-                                                      .secondaryActionLabel),
-                                              onPressed: () {
-                                                Navigator.of(
-                                                  ctx,
-                                                  rootNavigator: true,
-                                                ).pop();
-                                              },
-                                              type: DigitButtonType.secondary,
-                                              size: DigitButtonSize.large)
-                                        ]),
-                                  );
-                                } else {
-                                  // Submit & close
-                                  if (widget.isView == false) {
-                                    context
-                                        .read<FormsBloc>()
-                                        .add(FormsSubmitEvent(
+                                // No popup, no summary - just submit and close
+                                if (widget.isView == false) {
+                                  context.read<FormsBloc>().add(
+                                        FormsSubmitEvent(
                                           isEdit: widget.isEdit,
                                           schemaKey: widget.currentSchemaKey,
                                           isView: widget.isView,
-                                        ));
-                                  }
-                                  context.router.popUntil((route) {
-                                    return route.settings.name !=
-                                        FormsRenderRoute.name;
-                                  });
+                                        ),
+                                      );
                                 }
+                                context.router.popUntil((route) {
+                                  return route.settings.name !=
+                                      FormsRenderRoute.name;
+                                });
                               }
                             }
                             // ------- END DEFAULT FLOW -------

@@ -344,7 +344,7 @@ final jsonConfig = {
           "plannedEndDate": "taskDetails.plannedEndDate",
           "actualStartDate": "taskDetails.actualStartDate",
           "actualEndDate": "taskDetails.actualEndDate",
-          "createdDate": "__generate:timestamp",
+          "createdDate": "DeliveryDetails.dateOfRegistration",
           "address": {
             "id": "address.id",
             "relatedClientReferenceId": "__ref:TaskModel.clientReferenceId",
@@ -377,7 +377,8 @@ final jsonConfig = {
           },
           "additionalFields": {
             "cycleIndex": "__pad:2,0:__context:currentCycleId",
-            "doseIndex": "__pad:2,0:id"
+            "doseIndex": "__pad:2,0:id",
+            "deliveryComment": "DeliveryDetails.deliveryComment",
           },
           "clientAuditDetails": "__generate:clientAudit",
           "auditDetails": "__generate:audit"
@@ -485,7 +486,14 @@ final jsonConfig = {
             "clientAuditDetails": "__generate:clientAudit",
             "auditDetails": "__generate:audit"
           },
-          "additionalFields": "TaskAdditionalFields",
+          "additionalFields": {
+            "cycleIndex": "__pad:2,0:__context:currentCycleId",
+            "doseIndex": "__pad:2,0:id",
+            "ec1": "eligibilityChecklist.ec1",
+            "ec2": "eligibilityChecklist.ec2",
+            "ec3": "eligibilityChecklist.ec3",
+            "ec4": "eligibilityChecklist.ec4",
+          },
           "clientAuditDetails": "__generate:clientAudit",
           "auditDetails": "__generate:audit"
         }
