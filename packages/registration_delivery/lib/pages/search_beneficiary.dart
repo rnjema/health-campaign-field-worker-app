@@ -119,8 +119,12 @@ class _SearchBeneficiaryPageState
           Navigator.of(context, rootNavigator: true).pop();
           final householdModel =
               createState.householdMembers.firstOrNull?.household;
-          final individualModel = createState
-              .householdMembers.firstOrNull?.individuals?.firstOrNull;
+          final individualModel =
+              RegistrationDeliverySingleton().beneficiaryType ==
+                      BeneficiaryType.individual
+                  ? createState.selectedIndividual?.individual
+                  : createState
+                      .householdMembers.firstOrNull?.individuals?.firstOrNull;
           final taskModel =
               createState.householdMembers.firstOrNull?.tasks?.firstOrNull;
 
@@ -953,6 +957,10 @@ class _SearchBeneficiaryPageState
                     ),
                   ),
                   BlocListener<UniqueIdBloc, UniqueIdState>(
+                    listenWhen: (previous, current) {
+                      // Only listen when SearchBeneficiaryPage is the active route
+                      return ModalRoute.of(context)?.isCurrent ?? false;
+                    },
                     listener: (context, state) {
                       state.maybeWhen(
                           orElse: () {},
@@ -1548,7 +1556,7 @@ class _SearchBeneficiaryPageState
     TemplateConfig? template,
   ) {
     final primaryProp = template?.properties?['PrimaryButton'];
-    final secondaryProp = template?.properties?['qrscanner'] ;
+    final secondaryProp = template?.properties?['qrscanner'];
 
     final entries = <MapEntry<int, DigitButton>>[];
 

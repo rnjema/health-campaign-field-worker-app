@@ -29,6 +29,7 @@ import 'package:registration_delivery/widgets/beneficiary/id_count_alert.dart';
 import 'package:survey_form/blocs/service_definition.dart';
 
 import '/widgets/status_filter/status_filter.dart';
+import '../../blocs/app_localization.dart';
 import '../../blocs/unique_id/unique_id.dart';
 import '../../models/entities/status.dart';
 import '../../router/registration_delivery_router.gm.dart';
@@ -58,10 +59,19 @@ class _HouseholdOverviewPageState
 
   List<String> selectedFilters = [];
 
+  bool _isProgressDialogVisible = false;
+  final ProgressDialog _progressDialog = ProgressDialog();
+
   @override
   void initState() {
     callReloadEvent(offset: offset, limit: limit);
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    _progressDialog.dispose();
+    super.dispose();
   }
 
   @override
@@ -83,6 +93,10 @@ class _HouseholdOverviewPageState
         });
       },
       child: BlocListener<UniqueIdBloc, UniqueIdState>(
+        listenWhen: (previous, current) {
+          // Only listen when HouseholdOverviewPage is the active route
+          return ModalRoute.of(context)?.isCurrent ?? false;
+        },
         listener: (context, uniqueIdState) {
           uniqueIdState.maybeWhen(
             orElse: () {},
@@ -118,21 +132,39 @@ class _HouseholdOverviewPageState
                   currentUniqueId,
                 );
               } else if (availableIdCount <= 0) {
-                // No IDs available
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  showNoIdsAlert(
-                    context: context,
-                    showSkip: true,
-                    localizations: localizations,
-                    shouldProceedFurther: (bool skip) {
-                      _navigateToAddMemberForm(
-                        context,
-                        currentRegistrationState,
-                        null, // No unique ID available
-                      );
-                    },
-                  );
-                });
+                showNoIdsAlert(
+                  context: context,
+                  showSkip: true,
+                  localizations: localizations,
+                  shouldProceedFurther: (bool skip) {
+                    _navigateToAddMemberForm(
+                      context,
+                      currentRegistrationState,
+                      null, // No unique ID available
+                    );
+                  },
+                );
+              }
+            },
+            ids: (ids) {
+              _isProgressDialogVisible = false;
+            },
+            fetching: (currentCount, totalCount) {
+              if (_isProgressDialogVisible == false) {
+                _progressDialog.showProgressDialog(
+                  context: context,
+                  localizations: RegistrationDeliveryLocalization.of(context),
+                  currentCount: currentCount,
+                  totalCount: totalCount,
+                  theme: Theme.of(context),
+                );
+                _isProgressDialogVisible = true;
+              } else {
+                // To update progress:
+                _progressDialog.updateProgressDialog(
+                  currentCount: currentCount,
+                  totalCount: totalCount,
+                );
               }
             },
             failed: (String? error) {

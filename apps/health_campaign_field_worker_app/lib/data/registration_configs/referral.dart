@@ -97,7 +97,7 @@ final referralConfig = '''{
           "isMultiSelect": false
         },
         "evaluationFacilityKey": {
-          "type": "dynamic",
+          "type": "string",
           "label": "BENEFICIARY_REFERRAL_DETAILS_evaluationFacilityKey_LABEL",
           "order": 4,
           "value": "",
@@ -115,7 +115,7 @@ final referralConfig = '''{
            {
               "type": "required",
               "value": true,
-              "message": "Required field cannot be empty"
+              "message": "REQUIRED_FIELD_CANNOT_BE_EMPTY"
             }
             ],
           "errorMessage": "",

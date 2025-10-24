@@ -41,12 +41,56 @@ class RegistrationWrapperBloc
     try {
       globalRegistrationBloc.add(CrudEventCreate(entities: event.entities));
 
-      final wrappers = groupEntitiesIntoWrappers(event.entities);
+      final wrappers = groupEntitiesIntoWrappers(
+        event.entities,
+        existingWrappers: state.householdMembers,
+      );
+
+      // Check if we should update selected individual (only for individual beneficiary type)
+      SelectedIndividualWrapper? newSelectedIndividual = state.selectedIndividual;
+
+      if (RegistrationDeliverySingleton().beneficiaryType == BeneficiaryType.individual) {
+        final newIndividual = event.entities.whereType<IndividualModel>().firstOrNull;
+
+        if (newIndividual != null && wrappers.isNotEmpty) {
+          // Find the wrapper containing the new individual
+          final wrapperWithNewIndividual = wrappers.firstWhereOrNull(
+            (w) => w.individuals?.any(
+              (i) => i.clientReferenceId == newIndividual.clientReferenceId,
+            ) ?? false,
+          );
+
+          if (wrapperWithNewIndividual != null) {
+            final member = wrapperWithNewIndividual.members?.firstWhereOrNull(
+              (m) => m.individualClientReferenceId == newIndividual.clientReferenceId,
+            );
+
+            final projectBeneficiary = wrapperWithNewIndividual.projectBeneficiaries
+                ?.firstWhereOrNull(
+              (b) => b.beneficiaryClientReferenceId == newIndividual.clientReferenceId,
+            );
+
+            final tasks = wrapperWithNewIndividual.tasks
+                ?.where((t) =>
+                    t.projectBeneficiaryClientReferenceId ==
+                    projectBeneficiary?.clientReferenceId)
+                .toList();
+
+            newSelectedIndividual = SelectedIndividualWrapper(
+              individual: newIndividual,
+              member: member,
+              projectBeneficiary: projectBeneficiary,
+              tasks: tasks ?? [],
+            );
+          }
+        }
+      }
 
       emit(state.copyWith(
         loading: false,
         lastAction: RegistrationWrapperActionType.created,
         householdMembers: [...state.householdMembers, ...wrappers],
+        selectedIndividual: newSelectedIndividual,
       ));
     } catch (e) {
       emit(state.copyWith(loading: false, error: e.toString()));
@@ -74,7 +118,10 @@ class RegistrationWrapperBloc
 
       globalRegistrationBloc.add(CrudEventUpdate(entities: updatedEntities));
 
-      final wrappers = groupEntitiesIntoWrappers(event.entities);
+      final wrappers = groupEntitiesIntoWrappers(
+        event.entities,
+        existingWrappers: state.householdMembers,
+      );
 
       emit(state.copyWith(
         loading: false,
@@ -124,14 +171,61 @@ class RegistrationWrapperBloc
         globalRegistrationBloc.add(CrudEventUpdate(entities: updatedEntities));
       }
 
-      final wrappers = groupEntitiesIntoWrappers([
-        ...event.entitiesToCreate,
-        ...event.entitiesToUpdate,
-      ]);
+      final wrappers = groupEntitiesIntoWrappers(
+        [
+          ...event.entitiesToCreate,
+          ...event.entitiesToUpdate,
+        ],
+        existingWrappers: state.householdMembers,
+      );
+
+      // Check if we should update selected individual (only for individual beneficiary type)
+      SelectedIndividualWrapper? newSelectedIndividual = state.selectedIndividual;
+
+      if (RegistrationDeliverySingleton().beneficiaryType == BeneficiaryType.individual) {
+        final newIndividual = event.entitiesToCreate
+            .whereType<IndividualModel>()
+            .firstOrNull;
+
+        if (newIndividual != null && wrappers.isNotEmpty) {
+          // Find the wrapper containing the new individual
+          final wrapperWithNewIndividual = wrappers.firstWhereOrNull(
+            (w) => w.individuals?.any(
+              (i) => i.clientReferenceId == newIndividual.clientReferenceId,
+            ) ?? false,
+          );
+
+          if (wrapperWithNewIndividual != null) {
+            final member = wrapperWithNewIndividual.members?.firstWhereOrNull(
+              (m) => m.individualClientReferenceId == newIndividual.clientReferenceId,
+            );
+
+            final projectBeneficiary = wrapperWithNewIndividual.projectBeneficiaries
+                ?.firstWhereOrNull(
+              (b) => b.beneficiaryClientReferenceId == newIndividual.clientReferenceId,
+            );
+
+            final tasks = wrapperWithNewIndividual.tasks
+                ?.where((t) =>
+                    t.projectBeneficiaryClientReferenceId ==
+                    projectBeneficiary?.clientReferenceId)
+                .toList();
+
+            newSelectedIndividual = SelectedIndividualWrapper(
+              individual: newIndividual,
+              member: member,
+              projectBeneficiary: projectBeneficiary,
+              tasks: tasks ?? [],
+            );
+          }
+        }
+      }
+
       emit(state.copyWith(
         loading: false,
         lastAction: RegistrationWrapperActionType.createAndUpdate,
         householdMembers: [...state.householdMembers, ...wrappers],
+        selectedIndividual: newSelectedIndividual,
       ));
     } catch (e) {
       emit(state.copyWith(loading: false, error: e.toString()));
@@ -743,7 +837,10 @@ class RegistrationWrapperBloc
     emit(const RegistrationWrapperState()); // Reset to initial default state
   }
 
-  List<HouseholdWrapper> groupEntitiesIntoWrappers(List<EntityModel> entities) {
+  List<HouseholdWrapper> groupEntitiesIntoWrappers(
+    List<EntityModel> entities, {
+    List<HouseholdWrapper> existingWrappers = const [],
+  }) {
     final allHouseholds = entities.whereType<HouseholdModel>().toList();
     final allMembers = entities.whereType<HouseholdMemberModel>().toList();
     final allIndividuals = entities.whereType<IndividualModel>().toList();
@@ -755,17 +852,29 @@ class RegistrationWrapperBloc
 
     final wrappers = <HouseholdWrapper>[];
 
+    // First process head members
     for (final headMember
         in allMembers.where((m) => m.isHeadOfHousehold == true)) {
       final household = allHouseholds.firstWhereOrNull(
         (h) => h.clientReferenceId == headMember.householdClientReferenceId,
       );
 
-      if (household == null) continue;
+      // If household is null, try to find it from existing wrappers (last state)
+      final resolvedHousehold = household ??
+          existingWrappers
+              .firstWhereOrNull(
+                (w) =>
+                    w.household?.clientReferenceId ==
+                    headMember.householdClientReferenceId,
+              )
+              ?.household;
+
+      if (resolvedHousehold == null) continue;
 
       final householdMembers = allMembers
           .where((m) =>
-              m.householdClientReferenceId == household.clientReferenceId)
+              m.householdClientReferenceId ==
+              resolvedHousehold.clientReferenceId)
           .toList();
 
       final householdIndividuals = allIndividuals
@@ -782,7 +891,8 @@ class RegistrationWrapperBloc
               .toList()
           : allBeneficiaries
               .where((b) =>
-                  b.beneficiaryClientReferenceId == household.clientReferenceId)
+                  b.beneficiaryClientReferenceId ==
+                  resolvedHousehold.clientReferenceId)
               .toList();
 
       final beneficiaryIds =
@@ -794,18 +904,129 @@ class RegistrationWrapperBloc
           .toList();
 
       final sideEffects = allSideEffects
-          .where((s) => s.clientReferenceId == household.clientReferenceId)
+          .where(
+              (s) => s.clientReferenceId == resolvedHousehold.clientReferenceId)
           .toList();
 
       final referrals = allReferrals
-          .where((r) => r.clientReferenceId == household.clientReferenceId)
+          .where(
+              (r) => r.clientReferenceId == resolvedHousehold.clientReferenceId)
           .toList();
 
+      // Get head from existing wrapper if not found in new individuals
+      final headOfHousehold = householdIndividuals.firstWhereOrNull(
+            (i) =>
+                i.clientReferenceId == headMember.individualClientReferenceId,
+          ) ??
+          existingWrappers
+              .firstWhereOrNull(
+                (w) =>
+                    w.household?.clientReferenceId ==
+                    resolvedHousehold.clientReferenceId,
+              )
+              ?.headOfHousehold;
+
       wrappers.add(HouseholdWrapper(
-        household: household,
-        headOfHousehold: householdIndividuals.firstWhereOrNull(
-          (i) => i.clientReferenceId == headMember.individualClientReferenceId,
-        ),
+        household: resolvedHousehold,
+        headOfHousehold: headOfHousehold,
+        members: householdMembers,
+        individuals: householdIndividuals,
+        projectBeneficiaries: householdBeneficiaries,
+        tasks: tasks,
+        sideEffects: sideEffects,
+        referrals: referrals,
+      ));
+    }
+
+    // Now process non-head members (new members added to existing households)
+    for (final member in allMembers.where((m) => m.isHeadOfHousehold != true)) {
+      // Check if we already processed this member's household
+      if (wrappers.any((w) =>
+          w.household?.clientReferenceId == member.householdClientReferenceId)) {
+        continue;
+      }
+
+      // Find household from entities or existing wrappers
+      final household = allHouseholds.firstWhereOrNull(
+        (h) => h.clientReferenceId == member.householdClientReferenceId,
+      );
+
+      final resolvedHousehold = household ??
+          existingWrappers
+              .firstWhereOrNull(
+                (w) =>
+                    w.household?.clientReferenceId ==
+                    member.householdClientReferenceId,
+              )
+              ?.household;
+
+      if (resolvedHousehold == null) continue;
+
+      // Get existing wrapper data to preserve head and other members
+      final existingWrapper = existingWrappers.firstWhereOrNull(
+        (w) =>
+            w.household?.clientReferenceId ==
+            resolvedHousehold.clientReferenceId,
+      );
+
+      // Combine new members with existing ones
+      final householdMembers = [
+        ...?existingWrapper?.members,
+        ...allMembers.where((m) =>
+            m.householdClientReferenceId == resolvedHousehold.clientReferenceId),
+      ].toSet().toList(); // Remove duplicates
+
+      // Combine new individuals with existing ones
+      final newIndividuals = allIndividuals.where((i) => allMembers
+          .where((m) =>
+              m.householdClientReferenceId == resolvedHousehold.clientReferenceId)
+          .any((m) => m.individualClientReferenceId == i.clientReferenceId));
+
+      final householdIndividuals = [
+        ...?existingWrapper?.individuals,
+        ...newIndividuals,
+      ].toSet().toList(); // Remove duplicates
+
+      final householdBeneficiaries = RegistrationDeliverySingleton()
+                  .beneficiaryType ==
+              BeneficiaryType.individual
+          ? [
+              ...?existingWrapper?.projectBeneficiaries,
+              ...allBeneficiaries.where((b) => householdIndividuals
+                  .any((i) => i.clientReferenceId == b.beneficiaryClientReferenceId)),
+            ].toSet().toList()
+          : [
+              ...?existingWrapper?.projectBeneficiaries,
+              ...allBeneficiaries.where((b) =>
+                  b.beneficiaryClientReferenceId ==
+                  resolvedHousehold.clientReferenceId),
+            ].toSet().toList();
+
+      final beneficiaryIds =
+          householdBeneficiaries.map((b) => b.clientReferenceId).toSet();
+
+      final tasks = [
+        ...?existingWrapper?.tasks,
+        ...allTasks.where((t) =>
+            beneficiaryIds.contains(t.projectBeneficiaryClientReferenceId)),
+      ].toSet().toList();
+
+      final sideEffects = [
+        ...?existingWrapper?.sideEffects,
+        ...allSideEffects
+            .where((s) => s.clientReferenceId == resolvedHousehold.clientReferenceId),
+      ].toSet().toList();
+
+      final referrals = [
+        ...?existingWrapper?.referrals,
+        ...allReferrals
+            .where((r) => r.clientReferenceId == resolvedHousehold.clientReferenceId),
+      ].toSet().toList();
+
+      wrappers.add(HouseholdWrapper(
+        household: resolvedHousehold,
+        headOfHousehold:
+            existingWrapper?.headOfHousehold ?? householdIndividuals.firstOrNull,
         members: householdMembers,
         individuals: householdIndividuals,
         projectBeneficiaries: householdBeneficiaries,
