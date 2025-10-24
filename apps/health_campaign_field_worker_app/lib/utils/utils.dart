@@ -11,7 +11,6 @@ import 'package:complaints/complaints.init.dart' as complaints_mappers;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:digit_data_model/data_model.dart';
 import 'package:digit_data_model/data_model.init.dart' as data_model_mappers;
-import 'package:digit_data_model/models/entities/user_action.dart';
 import 'package:digit_dss/digit_dss.dart' as dss_mappers;
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
@@ -37,6 +36,8 @@ import 'package:registration_delivery/registration_delivery.init.dart'
 import 'package:survey_form/models/entities/service.dart';
 import 'package:survey_form/survey_form.init.dart' as survey_form_mappers;
 import 'package:sync_service/blocs/sync/sync.dart';
+import 'package:transit_post/data/repositories/local/user_action.dart';
+import 'package:transit_post/data/repositories/remote/user_action.dart';
 
 import '../blocs/app_initialization/app_initialization.dart';
 import '../blocs/localization/localization.dart';
@@ -524,8 +525,7 @@ void attemptSyncUp(BuildContext context) async {
               context.read<
                   LocalRepository<AttendanceLogModel,
                       AttendanceLogSearchModel>>(),
-              context.read<
-                  LocalRepository<UserActionModel, UserActionSearchModel>>(),
+              context.read<UserActionLocalRepository>(),
             ],
             remoteRepositories: [
               // INFO : Need to add repo repo of package Here
@@ -557,8 +557,7 @@ void attemptSyncUp(BuildContext context) async {
               context.read<
                   RemoteRepository<AttendanceLogModel,
                       AttendanceLogSearchModel>>(),
-              context.read<
-                  RemoteRepository<UserActionModel, UserActionSearchModel>>(),
+              context.read<UserActionRemoteRepository>(),
             ],
           ),
         );
