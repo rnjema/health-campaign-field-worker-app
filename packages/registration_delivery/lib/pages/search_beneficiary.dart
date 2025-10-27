@@ -389,6 +389,43 @@ class _SearchBeneficiaryPageState
 
                 final nextAction = lastPage?.navigateTo;
 
+                if (formState.activeSchemaKey == "DELIVERYFLOW" &&
+                    nextAction?.name == "BENEFICIARY_REFERRED") {
+                  // Navigate to beneficiary-referred form
+                  final pageName = context
+                      .read<FormsBloc>()
+                      .state
+                      .cachedSchemas['BENEFICIARY_REFERRED']
+                      ?.pages
+                      .entries
+                      .first
+                      .key;
+
+                  if (pageName != null) {
+                    context.router.push(FormsRenderRoute(
+                      currentSchemaKey: "BENEFICIARY_REFERRED",
+                      pageName: pageName,
+                      defaultValues: {
+                        'administrativeArea': localizations.translate(
+                            RegistrationDeliverySingleton().boundary?.code ??
+                                ''),
+                        'referredBy':
+                            RegistrationDeliverySingleton().loggedInUser?.uuid,
+                      },
+                      customComponents: const [
+                        {'evaluationFacilityKey': EvaluationKeyDropDown()}
+                      ],
+                    ));
+                  }
+                  context.read<FormsBloc>().add(
+                        const FormsEvent.clearForm(
+                            schemaKey:
+                                'ELIGIBILITYCHECKLIST'), // or create a FormsResetEvent
+                      );
+                  Navigator.of(context, rootNavigator: true).pop();
+                  return;
+                }
+
                 if (formState.activeSchemaKey == 'ELIGIBILITYCHECKLIST') {
                   final navigateToName = nextAction?.name.toLowerCase();
                   final navigateToType = nextAction?.type.toLowerCase();

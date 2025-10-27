@@ -216,8 +216,14 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                                       navigateTo.type.toLowerCase();
 
                                   // If type == 'form' -> navigate to that form page
+                                  // ✅ Ensure that if the target page doesn't exist, we fall back to submit
+                                  final pageExists = updatedSchemaObject.pages
+                                      .containsKey(targetPageName);
+
+// If type == 'form' -> navigate to that form page (only if it exists)
                                   if (targetPageType == 'form' &&
-                                      targetPageName.isNotEmpty) {
+                                      targetPageName.isNotEmpty &&
+                                      pageExists) {
                                     context.router.push(FormsRenderRoute(
                                       isEdit: widget.isEdit,
                                       customComponents: widget.customComponents,
@@ -226,6 +232,64 @@ class _FormsRenderPageState extends LocalizedState<FormsRenderPage> {
                                       defaultValues: widget.defaultValues,
                                       isView: widget.isView,
                                     ));
+                                    return;
+                                  }
+
+// 🚨 If type == 'form' but page doesn't exist, treat it as 'submit'
+                                  if (targetPageType == 'form' &&
+                                      (!pageExists || targetPageName.isEmpty)) {
+                                    if (widget.isView == false) {
+                                      // Get the last page key for stamping navigation
+                                      final sortedEntries = updatedSchemaObject
+                                          .pages.entries
+                                          .toList()
+                                        ..sort((a, b) => (a.value.order ?? 0)
+                                            .compareTo(b.value.order ?? 0));
+                                      final realLastKey =
+                                          sortedEntries.isNotEmpty
+                                              ? sortedEntries.last.key
+                                              : widget.pageName;
+
+// Always stamp the latest navigation target into the last page
+                                      final schemaWithStampedLast =
+                                          updatedSchemaObject.copyWith(
+                                        pages: Map.fromEntries(
+                                          updatedSchemaObject.pages.entries.map(
+                                            (e) => MapEntry(
+                                              e.key,
+                                              e.key == realLastKey
+                                                  ? e.value.copyWith(
+                                                      navigateTo: navigateTo)
+                                                  : e.value,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+
+                                      // Update the form schema with this new navigation info
+                                      context.read<FormsBloc>().add(
+                                            FormsUpdateEvent(
+                                              schemaKey:
+                                                  widget.currentSchemaKey,
+                                              schema: schemaWithStampedLast,
+                                            ),
+                                          );
+
+                                      context.read<FormsBloc>().add(
+                                            FormsSubmitEvent(
+                                              isEdit: widget.isEdit,
+                                              schemaKey:
+                                                  widget.currentSchemaKey,
+                                              isView: widget.isView,
+                                            ),
+                                          );
+                                    }
+
+                                    // Pop until we exit the form
+                                    context.router.popUntil((route) {
+                                      return route.settings.name !=
+                                          FormsRenderRoute.name;
+                                    });
                                     return;
                                   } else {
                                     // NON-FORM TARGET (template/summary/submit/unknown)
