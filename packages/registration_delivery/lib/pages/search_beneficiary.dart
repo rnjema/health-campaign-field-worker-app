@@ -1308,6 +1308,10 @@ class _SearchBeneficiaryPageState
                         builder: (context, blocState) {
                       final items = blocState.householdMembers;
                       return BlocListener<DigitScannerBloc, DigitScannerState>(
+                        listenWhen: (previous, current) {
+                          // Only listen when HouseholdOverviewPage is the active route
+                          return ModalRoute.of(context)?.isCurrent ?? false;
+                        },
                         listener: (context, scannerState) {
                           if (scannerState.qrCodes.isNotEmpty &&
                               selectedTag != scannerState.qrCodes.lastOrNull) {

@@ -6,6 +6,7 @@ import 'package:digit_data_model/models/entities/household_type.dart';
 import 'package:digit_data_model/models/templates/template_config.dart';
 import 'package:digit_forms_engine/blocs/forms/forms.dart';
 import 'package:digit_forms_engine/router/forms_router.gm.dart';
+import 'package:digit_scanner/blocs/scanner.dart';
 import 'package:digit_ui_components/enum/app_enums.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/theme/digit_theme.dart';
@@ -1511,6 +1512,9 @@ class _HouseholdOverviewPageState
     HouseholdModel household = state.householdMembers.first.household!;
     IndividualModel headOfHousehold =
         state.householdMembers.first.headOfHousehold!;
+    context
+        .read<DigitScannerBloc>()
+        .add(const DigitScannerEvent.handleScanner());
     if (searchPageTemplate != null &&
         searchPageTemplate.properties?['searchByID']?.hidden != true) {
       context.read<UniqueIdBloc>().add(const UniqueIdEvent.fetchIdCount());

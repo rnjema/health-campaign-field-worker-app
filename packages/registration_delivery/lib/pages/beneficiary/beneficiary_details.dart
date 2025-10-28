@@ -3,6 +3,7 @@ import 'package:collection/collection.dart';
 import 'package:digit_data_model/data_model.dart';
 import 'package:digit_forms_engine/blocs/forms/forms.dart';
 import 'package:digit_forms_engine/router/forms_router.gm.dart';
+import 'package:digit_scanner/blocs/scanner.dart';
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/utils/date_utils.dart';
@@ -423,6 +424,7 @@ class BeneficiaryDetailsPageState
                                                                             null) {
                                                                           if (beneficiaryDetailsTemplate?.navigateTo?.type ==
                                                                               'form') {
+                                                                            context.read<DigitScannerBloc>().add(const DigitScannerEvent.handleScanner());
                                                                             final pageName =
                                                                                 context.read<FormsBloc>().state.cachedSchemas['DELIVERYFLOW']?.pages.entries.firstOrNull?.key;
 
