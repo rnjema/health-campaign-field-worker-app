@@ -3,6 +3,7 @@ import 'package:collection/collection.dart';
 import 'package:digit_data_converter/src/reverse_transformer_service.dart';
 import 'package:digit_data_model/data_model.dart';
 import 'package:digit_data_model/models/entities/household_type.dart';
+import 'package:digit_data_model/models/templates/template_config.dart';
 import 'package:digit_forms_engine/blocs/forms/forms.dart';
 import 'package:digit_forms_engine/router/forms_router.gm.dart';
 import 'package:digit_ui_components/enum/app_enums.dart';
@@ -77,8 +78,12 @@ class _HouseholdOverviewPageState
   @override
   Widget build(BuildContext context) {
     final pageKey = HouseholdOverviewRoute.name.replaceAll('Route', '');
+    final searchPageKey = SearchBeneficiaryRoute.name.replaceAll('Route', '');
     final overviewTemplate =
         RegistrationDeliverySingleton().templateConfigs?[pageKey];
+
+    final searchPageTemplate =
+        RegistrationDeliverySingleton().templateConfigs?[searchPageKey];
     final theme = Theme.of(context);
     final beneficiaryType = RegistrationDeliverySingleton().beneficiaryType!;
     final textTheme = theme.digitTextTheme(context);
@@ -1474,9 +1479,7 @@ class _HouseholdOverviewPageState
                                     child: DigitButton(
                                       mainAxisSize: MainAxisSize.max,
                                       onPressed: () => addIndividual(
-                                        context,
-                                        state,
-                                      ),
+                                          context, state, searchPageTemplate),
                                       label: localizations.translate(
                                         overviewTemplate
                                                 ?.properties?[registration_keys
@@ -1503,11 +1506,47 @@ class _HouseholdOverviewPageState
     );
   }
 
-  addIndividual(BuildContext context, RegistrationWrapperState state) async {
+  addIndividual(BuildContext context, RegistrationWrapperState state,
+      TemplateConfig? searchPageTemplate) async {
     HouseholdModel household = state.householdMembers.first.household!;
     IndividualModel headOfHousehold =
         state.householdMembers.first.headOfHousehold!;
-    context.read<UniqueIdBloc>().add(const UniqueIdEvent.fetchIdCount());
+    if (searchPageTemplate != null &&
+        searchPageTemplate.properties?['searchByID']?.hidden != true) {
+      context.read<UniqueIdBloc>().add(const UniqueIdEvent.fetchIdCount());
+    } else {
+      final pageName = context
+          .read<FormsBloc>()
+          .state
+          .cachedSchemas["ADDMEMBERFLOW"]
+          ?.pages
+          .entries
+          .first
+          .key;
+
+      if (pageName == null) {
+        Toast.showToast(
+          context,
+          message: localizations.translate('NO_FORM_FOUND_FOR_REGISTRATION'),
+          type: ToastType.error,
+        );
+      } else {
+        context.router.push(FormsRenderRoute(
+          currentSchemaKey: "ADDMEMBERFLOW",
+          pageName: pageName,
+          defaultValues: {
+            'administrativeArea': localizations.translate(
+              RegistrationDeliverySingleton().boundary?.code ?? '',
+            ),
+            'availableIDs': {
+              'DEFAULT': IdGen.instance.identifier,
+            },
+            'eToken': "",
+          },
+        ));
+      }
+    }
+
     // final pageName = context
     //     .read<FormsBloc>()
     //     .state
