@@ -161,7 +161,37 @@ const addMember = '''{
           ],
           "enums": [
             { "code": "MALE", "name": "MALE" },
-            { "code": "FEMALE", "name": "FEMALE" },
+            { "code": "FEMALE", "name": "FEMALE" }
+          ],
+          "errorMessage": "",
+          "isMultiSelect": false
+        },
+        "individualImage": {
+          "type": "dynamic",
+          "label": "REGISTRATION_INDIVIDUAL_gender_LABEL",
+          "order": 6,
+          "value": "",
+          "format": "image",
+          "hidden": false,
+          "tooltip": "",
+          "helpText": "",
+          "infoText": "",
+          "readOnly": false,
+          "fieldName": "individualImage",
+          "deleteFlag": false,
+          "innerLabel": "",
+          "schemaCode": "common-masters.GenderType",
+          "systemDate": false,
+          "validations": [
+          {
+              "type": "required",
+              "value": true,
+              "message": "Required field cannot be empty"
+            }
+          ],
+          "enums": [
+            { "code": "MALE", "name": "MALE" },
+            { "code": "FEMALE", "name": "FEMALE" }
           ],
           "errorMessage": "",
           "isMultiSelect": false

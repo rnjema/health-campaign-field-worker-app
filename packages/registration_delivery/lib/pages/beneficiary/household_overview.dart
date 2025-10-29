@@ -1522,7 +1522,7 @@ class _HouseholdOverviewPageState
       final pageName = context
           .read<FormsBloc>()
           .state
-          .cachedSchemas["ADDMEMBERFLOW"]
+          .cachedSchemas["ADD_MEMBER"]
           ?.pages
           .entries
           .first
@@ -1536,7 +1536,7 @@ class _HouseholdOverviewPageState
         );
       } else {
         context.router.push(FormsRenderRoute(
-          currentSchemaKey: "ADDMEMBERFLOW",
+          currentSchemaKey: "ADD_MEMBER",
           pageName: pageName,
           defaultValues: {
             'administrativeArea': localizations.translate(

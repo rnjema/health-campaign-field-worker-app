@@ -143,7 +143,7 @@ class _JsonFormBuilderState extends LocalizedState<JsonFormBuilder> {
       case PropertySchemaType.object:
         return _buildObjectType(form);
       case PropertySchemaType.dynamic:
-        return _buildCustomComponent() ?? const SizedBox.shrink();
+        return _buildCustomComponent(form) ?? const SizedBox.shrink();
     }
   }
 
@@ -266,7 +266,7 @@ class _JsonFormBuilderState extends LocalizedState<JsonFormBuilder> {
         );
 
       case PropertySchemaFormat.custom:
-        return _buildCustomComponent() ?? const SizedBox.shrink();
+        return _buildCustomComponent(form) ?? const SizedBox.shrink();
 
       case PropertySchemaFormat.latLng:
         return JsonSchemaLatLngBuilder(
@@ -383,7 +383,7 @@ class _JsonFormBuilderState extends LocalizedState<JsonFormBuilder> {
         );
 
       case PropertySchemaFormat.custom:
-        return _buildCustomComponent() ?? const SizedBox.shrink();
+        return _buildCustomComponent(form) ?? const SizedBox.shrink();
 
       default:
         return JsonSchemaNumberBuilder(
@@ -425,7 +425,7 @@ class _JsonFormBuilderState extends LocalizedState<JsonFormBuilder> {
         );
 
       case PropertySchemaFormat.custom:
-        return _buildCustomComponent() ?? const SizedBox.shrink();
+        return _buildCustomComponent(form) ?? const SizedBox.shrink();
 
       default:
         return JsonSchemaStringBuilder(
@@ -487,7 +487,15 @@ class _JsonFormBuilderState extends LocalizedState<JsonFormBuilder> {
   }
 
   /// Handle `custom` format
-  Widget? _buildCustomComponent() {
+  Widget? _buildCustomComponent(FormGroup form) {
+    final format = widget.schema.format;
+    if (format == PropertySchemaFormat.image) {
+      return JsonSchemaImageBuilder(
+          isMultiSelect: widget.schema.isMultiSelect ?? false,
+          label: translateIfPresent(widget.schema.label, localizations),
+          formControlName: widget.formControlName,
+          form: form);
+    }
     if (widget.components == null || widget.components!.isEmpty) return null;
     for (var component in widget.components!) {
       if (component.containsKey(widget.formControlName)) {

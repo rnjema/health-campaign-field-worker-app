@@ -29,6 +29,7 @@ import '../blocs/forms/forms.dart';
 import '../helper/validation_message_helper.dart';
 import '../helper/visibility_manager.dart';
 import '../utils/utils.dart';
+import '../utils/image_compression_utils.dart';
 import 'localized.dart';
 
 part 'checkbox_builder.dart';

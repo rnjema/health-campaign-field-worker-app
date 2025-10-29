@@ -142,6 +142,7 @@ const _$PropertySchemaFormatEnumMap = {
   PropertySchemaFormat.mobileNumber: 'mobileNumber',
   PropertySchemaFormat.textArea: 'textArea',
   PropertySchemaFormat.text: 'text',
+  PropertySchemaFormat.image: 'image',
 };
 
 _$ValidationRuleImpl _$$ValidationRuleImplFromJson(Map<String, dynamic> json) =>

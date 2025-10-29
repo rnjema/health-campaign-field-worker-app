@@ -1,6 +1,7 @@
 part of 'json_schema_builder.dart';
 
 class JsonSchemaImageBuilder extends JsonSchemaBuilder<String> {
+  final bool isMultiSelect;
   const JsonSchemaImageBuilder({
     required super.formControlName,
     required super.form,
@@ -10,6 +11,7 @@ class JsonSchemaImageBuilder extends JsonSchemaBuilder<String> {
     super.validations,
     super.readOnly,
     super.isRequired,
+    this.isMultiSelect = false,
   });
 
   @override
@@ -30,7 +32,46 @@ class JsonSchemaImageBuilder extends JsonSchemaBuilder<String> {
       formControlName: formControlName,
       validationMessages: validationMessages,
       builder: (field) {
-        return ImageUploader(onImagesSelected: (selectedImages) {});
+        return ImageUploader(
+          label: label,
+          allowMultiples: isMultiSelect,
+          onImagesSelected: (selectedImages) async {
+            if (selectedImages.isEmpty) {
+              // Clear the form control if no images
+              form.control(formControlName).value = null;
+              return;
+            }
+
+            try {
+              // Compress all selected images
+              final compressedImages = await ImageCompressionUtils.compressMultiple(
+                selectedImages,
+                maxWidth: 1920,
+                maxHeight: 1920,
+                quality: 85,
+              );
+
+              // Store as list of maps with name and base64 data
+              // For single image, store as single map, for multiple, store as list
+              if (isMultiSelect) {
+                form.control(formControlName).value = compressedImages;
+              } else {
+                // For single image, store just the first image
+                form.control(formControlName).value = compressedImages.isNotEmpty
+                    ? compressedImages.first
+                    : null;
+              }
+
+              // Mark as touched for validation
+              form.control(formControlName).markAsTouched();
+            } catch (e) {
+              // Handle compression error
+              print('Error compressing images: $e');
+              // Optionally show error to user
+              form.control(formControlName).setErrors({'compression': 'Failed to compress image'});
+            }
+          },
+        );
       },
     );
   }

@@ -45,6 +45,7 @@ import '../data/local_store/app_shared_preferences.dart';
 import '../data/local_store/no_sql/schema/app_configuration.dart';
 import '../data/local_store/no_sql/schema/service_registry.dart';
 import '../data/local_store/secure_store/secure_store.dart';
+import '../data/registration_configs/add_member.dart';
 import '../data/registration_configs/referral.dart';
 import '../models/entities/roles_type.dart';
 import '../router/app_router.dart';
@@ -467,7 +468,7 @@ class _HomePageState extends LocalizedState<HomePage> {
                 RegistrationDeliverySingleton()
                     .setDeliveryConfig(deliveryConfig);
                 RegistrationDeliverySingleton().setExtraConfigs(
-                    [addMemberConfig, checklistConfig, referralConfig]);
+                    [addMember, checklistConfig, referralConfig]);
               }
             }
             RegistrationDeliverySingleton()

@@ -207,7 +207,8 @@ enum PropertySchemaFormat {
   idPopulator,
   mobileNumber,
   textArea,
-  text;
+  text,
+  image,
 }
 
 enum PropertySchemaType { object, string, integer, boolean, dynamic }
