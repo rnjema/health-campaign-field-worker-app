@@ -275,6 +275,10 @@ class _SearchBeneficiaryPageState
             final formData = formState.formData;
             if (formData.isEmpty) return;
 
+            context
+                .read<DigitScannerBloc>()
+                .add(const DigitScannerEvent.handleScanner());
+
             try {
               if (formState.isEdit) {
                 final formEntityMapper = FormEntityMapper(config: jsonConfig);
