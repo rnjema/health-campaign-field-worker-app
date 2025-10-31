@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:attendance_management/attendance_management.dart';
 import 'package:complaints/complaints.dart';
+import 'package:digit_data_model/data/repositories/local/user_action.dart';
+import 'package:digit_data_model/data/repositories/oplog/user_action.dart';
+import 'package:digit_data_model/data/repositories/remote/user_action.dart';
 import 'package:digit_data_model/data_model.dart';
 import 'package:digit_data_model/models/entities/user_action.dart';
 import 'package:digit_location_tracker/data/oplog/oplog.dart';
@@ -21,9 +24,6 @@ import 'package:registration_delivery/data/repositories/remote/unique_id_pool.da
 import 'package:registration_delivery/models/entities/unique_id_pool.dart';
 import 'package:registration_delivery/registration_delivery.dart';
 import 'package:survey_form/survey_form.dart';
-import 'package:transit_post/data/repositories/local/user_action.dart';
-import 'package:transit_post/data/repositories/oplog/oplog.dart';
-import 'package:transit_post/data/repositories/remote/user_action.dart';
 
 import '../blocs/app_initialization/app_initialization.dart';
 import '../data/local_store/downsync/downsync.dart';

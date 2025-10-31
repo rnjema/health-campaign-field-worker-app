@@ -2,6 +2,9 @@ import 'package:attendance_management/attendance_management.dart';
 import 'package:closed_household/utils/utils.dart';
 import 'package:collection/collection.dart';
 import 'package:complaints/complaints.dart';
+import 'package:digit_data_model/data/repositories/local/user_action.dart';
+import 'package:digit_data_model/data/repositories/oplog/user_action.dart';
+import 'package:digit_data_model/data/repositories/remote/user_action.dart';
 import 'package:digit_data_model/data_model.dart';
 import 'package:digit_dss/digit_dss.dart';
 import 'package:digit_firebase_services/digit_firebase_services.dart'
@@ -17,9 +20,6 @@ import 'package:referral_reconciliation/referral_reconciliation.dart';
 import 'package:registration_delivery/registration_delivery.dart';
 import 'package:survey_form/survey_form.dart';
 import 'package:sync_service/sync_service_lib.dart';
-import 'package:transit_post/data/repositories/local/user_action.dart';
-import 'package:transit_post/data/repositories/oplog/oplog.dart';
-import 'package:transit_post/data/repositories/remote/user_action.dart';
 import 'package:transit_post/utils/utils.dart';
 
 import '../data/local_store/no_sql/schema/app_configuration.dart';

@@ -559,7 +559,7 @@ class _SearchBeneficiaryPageState
                     formState.activeSchemaKey == "BENEFICIARY_REFERRED"
                         ? (jsonConfig['referral']?['models']
                             as Map<String, dynamic>)
-                        : formState.activeSchemaKey == "ADDMEMBERFLOW"
+                        : formState.activeSchemaKey == "ADD_MEMBER"
                             ? (jsonConfig['individualRegistration']?['models']
                                 as Map<String, dynamic>)
                             : formState.activeSchemaKey == 'DELIVERYFLOW'
@@ -571,7 +571,7 @@ class _SearchBeneficiaryPageState
                 final fallBackModel =
                     formState.activeSchemaKey == "BENEFICIARY_REFERRED"
                         ? (jsonConfig['referral']?['fallbackModel'] as String?)
-                        : formState.activeSchemaKey == "ADDMEMBERFLOW"
+                        : formState.activeSchemaKey == "ADD_MEMBER"
                             ? (jsonConfig['individualRegistration']
                                 ?['fallbackModel'] as String?)
                             : formState.activeSchemaKey == 'DELIVERYFLOW'

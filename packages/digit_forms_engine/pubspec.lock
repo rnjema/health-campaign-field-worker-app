@@ -388,10 +388,10 @@ packages:
     description:
       path: "flutter/digit-ui-components/digit_components"
       ref: beneficiary-idgen
-      resolved-ref: "30926827c380d81cb48b3e8681d259a055ff01c8"
+      resolved-ref: "0d90abcdc4faeef92f887bad05a785f15e254793"
       url: "https://github.com/egovernments/DIGIT-UI-LIBRARIES"
     source: git
-    version: "0.2.3"
+    version: "0.2.3+1"
   dotted_border:
     dependency: transitive
     description:

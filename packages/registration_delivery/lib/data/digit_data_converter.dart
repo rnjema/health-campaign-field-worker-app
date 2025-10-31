@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:digit_data_converter/utils/utils.dart';
 import 'package:digit_data_model/data_model.dart';
+import 'package:digit_data_model/models/entities/user_action.dart';
 import 'package:registration_delivery/registration_delivery.dart';
 
 class EntityModelJsonMapper extends DynamicEntityModelListener {
@@ -27,5 +28,7 @@ class EntityModelJsonMapper extends DynamicEntityModelListener {
             FacilityModelMapper.fromJson(jsonEncode(json)),
         'ProjectTypeModel': (json) =>
             ProjectTypeModelMapper.fromJson(jsonEncode(json)),
+        'UserActionModel': (json) =>
+            UserActionModelMapper.fromJson(jsonEncode(json)),
       };
 }

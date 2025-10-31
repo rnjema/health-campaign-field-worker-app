@@ -319,6 +319,32 @@ final jsonConfig = {
           "auditDetails": "__generate:audit",
         }
       },
+      "UserActionModel": {
+        "mappings": {
+          "id": "beneficiaryDetails.id",
+          "projectId": "__context:projectId",
+          "tenantId": "__context:tenantId",
+          "latitude": "__context:householdModel.address.latitude",
+          "longitude": "__context:householdModel.address.longitude",
+          "action": "__value:OTHER",
+          "locationAccuracy": "__value:9.5",
+          "nonRecoverableError": "errors.nonRecoverable",
+          "clientReferenceId": "__generate:uuid",
+          "boundaryCode": "__context:selectedBoundaryCode",
+          "isSync": "__value:true",
+          "timestamp": "__value:DATETIME.NOW",
+          "beneficiaryTag": "__ref:ProjectBeneficiaryModel.clientReferenceId",
+
+          /// Note: Generate uuid
+          "rowVersion": "meta.rowVersion",
+          "clientAuditDetails": "__generate:clientAudit",
+          "auditDetails": "__generate:audit",
+          "additionalFields": {
+            "imageName": "beneficiaryDetails.individualImage.name",
+            "imageData": "beneficiaryDetails.individualImage.data"
+          }
+        }
+      },
     }
   },
   "delivery": {

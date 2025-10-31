@@ -1,10 +1,10 @@
 import 'dart:async';
 
+import 'package:digit_data_model/data/repositories/local/user_action.dart';
 import 'package:digit_data_model/data_model.dart';
 import 'package:digit_data_model/models/entities/user_action.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:transit_post/data/repositories/local/user_action.dart';
 import 'package:transit_post/utils/utils.dart';
 
 part 'transit_post.freezed.dart';

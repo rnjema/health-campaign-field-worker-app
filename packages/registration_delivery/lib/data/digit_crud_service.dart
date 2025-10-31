@@ -1,6 +1,9 @@
 import 'package:digit_crud_bloc/digit_crud_bloc.dart';
+import 'package:digit_data_model/data/repositories/local/user_action.dart';
 import 'package:digit_data_model/data_model.dart';
+import 'package:digit_data_model/models/entities/user_action.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:registration_delivery/registration_delivery.dart';
 import 'package:registration_delivery/utils/extensions/extensions.dart';
 
@@ -31,6 +34,8 @@ class DigitCrudService extends CrudService {
       return context.repository<TaskModel, TaskSearchModel>(context);
     } else if (entity is ReferralModel) {
       return context.repository<ReferralModel, ReferralSearchModel>(context);
+    } else if (entity is UserActionModel) {
+      return context.read<UserActionLocalRepository>();
     } else {
       return context.repository<HouseholdModel, HouseholdSearchModel>(context);
     }
