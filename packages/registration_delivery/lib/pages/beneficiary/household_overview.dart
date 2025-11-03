@@ -1268,45 +1268,82 @@ class _HouseholdOverviewPageState
                                                 Navigator.of(context,
                                                         rootNavigator: true)
                                                     .pop();
-                                                final mapper =
-                                                    ReverseFormMapper(
-                                                  formConfig: jsonConfig[
-                                                      'individualRegistration']!,
-                                                  modelInstances: [e],
-                                                );
 
-                                                final formData =
-                                                    mapper.buildFormData();
+                                                // Check if editing head of household
+                                                if (isHead) {
+                                                  // For head of household, use REGISTRATIONFLOW with beneficiary page
+                                                  final mapper =
+                                                      ReverseFormMapper(
+                                                    formConfig: jsonConfig[
+                                                        'individualRegistration']!,
+                                                    modelInstances: [e],
+                                                  );
 
-                                                final pageName = context
-                                                    .read<FormsBloc>()
-                                                    .state
-                                                    .cachedSchemas[
-                                                        'ADDMEMBERFLOW']
-                                                    ?.pages
-                                                    .entries
-                                                    .first
-                                                    .key;
+                                                  final formData =
+                                                      mapper.buildFormData();
 
-                                                context.router
-                                                    .push(FormsRenderRoute(
-                                                  isEdit: true,
-                                                  currentSchemaKey:
-                                                      'ADDMEMBERFLOW',
-                                                  pageName: pageName!,
+                                                  // Get the last page (beneficiaryDetails) from REGISTRATIONFLOW
+                                                  final pages = context
+                                                      .read<FormsBloc>()
+                                                      .state
+                                                      .cachedSchemas[
+                                                          'REGISTRATIONFLOW']
+                                                      ?.pages;
 
-                                                  /// as registration is there assuming form won't be null
-                                                  defaultValues: {
-                                                    ...formData,
-                                                    'administrativeArea':
-                                                        localizations.translate(
-                                                            RegistrationDeliverySingleton()
-                                                                    .boundary
-                                                                    ?.code ??
-                                                                ''),
-                                                  },
-                                                ));
-                                                //TODO: need to add logic for edit member
+                                                  final pageName =
+                                                      pages?.entries.last.key;
+
+                                                  context.router
+                                                      .push(FormsRenderRoute(
+                                                    isEdit: true,
+                                                    currentSchemaKey:
+                                                        'REGISTRATIONFLOW',
+                                                    pageName: pageName!,
+
+                                                    /// as registration is there assuming form won't be null
+                                                    defaultValues: formData,
+                                                  ));
+                                                } else {
+                                                  // For regular members, use ADDMEMBERFLOW
+                                                  final mapper =
+                                                      ReverseFormMapper(
+                                                    formConfig: jsonConfig[
+                                                        'individualRegistration']!,
+                                                    modelInstances: [e],
+                                                  );
+
+                                                  final formData =
+                                                      mapper.buildFormData();
+
+                                                  final pageName = context
+                                                      .read<FormsBloc>()
+                                                      .state
+                                                      .cachedSchemas[
+                                                          'ADDMEMBERFLOW']
+                                                      ?.pages
+                                                      .entries
+                                                      .first
+                                                      .key;
+
+                                                  context.router
+                                                      .push(FormsRenderRoute(
+                                                    isEdit: true,
+                                                    currentSchemaKey:
+                                                        'ADDMEMBERFLOW',
+                                                    pageName: pageName!,
+
+                                                    /// as registration is there assuming form won't be null
+                                                    defaultValues: {
+                                                      ...formData,
+                                                      'administrativeArea':
+                                                          localizations.translate(
+                                                              RegistrationDeliverySingleton()
+                                                                      .boundary
+                                                                      ?.code ??
+                                                                  ''),
+                                                    },
+                                                  ));
+                                                }
                                               },
                                               setAsHeadAction: () {
                                                 /// TODO: need to add event in wrapper class for head change

@@ -65,6 +65,7 @@ class _SearchBeneficiaryPageState
   List<String> selectedFilters = [];
   bool _isProgressDialogVisible = false;
   final ProgressDialog _progressDialog = ProgressDialog();
+  bool _shouldUpdateFromScanner = false;
 
   late final RegistrationWrapperBloc blocWrapper; // Declare BlocWrapper
 
@@ -297,11 +298,17 @@ class _SearchBeneficiaryPageState
 
                 final member = householdMember?.members?.firstOrNull;
 
+                // Check if editing head of household with REGISTRATIONFLOW
+                final isEditingHeadOfHousehold =
+                    formState.activeSchemaKey == "REGISTRATIONFLOW" &&
+                        blocWrapper.state.selectedIndividual != null;
+
                 final modelsConfig =
                     formState.activeSchemaKey == "BENEFICIARY_REFERRED"
                         ? (jsonConfig['referral']?['models']
                             as Map<String, dynamic>)
-                        : formState.activeSchemaKey == "ADDMEMBERFLOW"
+                        : formState.activeSchemaKey == "ADDMEMBERFLOW" ||
+                                isEditingHeadOfHousehold
                             ? (jsonConfig['individualRegistration']?['models']
                                 as Map<String, dynamic>)
                             : formState.activeSchemaKey == 'DELIVERYFLOW'
@@ -314,7 +321,9 @@ class _SearchBeneficiaryPageState
                   final entities = formEntityMapper.updateEntitiesFromForm(
                     modelsConfig: modelsConfig,
                     formValues: formData,
-                    existingModels: formState.activeSchemaKey == "ADDMEMBERFLOW"
+                    existingModels: formState.activeSchemaKey ==
+                                "ADDMEMBERFLOW" ||
+                            isEditingHeadOfHousehold
                         ? [if (individual != null) individual]
                         : [
                             if (household != null) household,
@@ -347,19 +356,31 @@ class _SearchBeneficiaryPageState
                   );
 
                   final toCreate = <EntityModel>[];
-                  final toUpdate = [...entities];
+                  List<EntityModel> toUpdate;
 
-                  // If projectBeneficiary is null, mark for creation
-                  if (projectBeneficiary == null) {
-                    final projectBeneficiariesToCreate = entities
-                        .where((e) => e.runtimeType == ProjectBeneficiaryModel)
+                  // When editing member (ADDMEMBERFLOW or head of household), only update Individual
+                  if (formState.activeSchemaKey == "ADDMEMBERFLOW" ||
+                      isEditingHeadOfHousehold) {
+                    // Filter to only include IndividualModel, exclude ProjectBeneficiaryModel and HouseholdMemberModel
+                    toUpdate = entities
+                        .where((e) => e.runtimeType == IndividualModel)
                         .toList();
+                  } else {
+                    toUpdate = [...entities];
 
-                    toCreate.addAll(projectBeneficiariesToCreate);
+                    // If projectBeneficiary is null, mark for creation
+                    if (projectBeneficiary == null) {
+                      final projectBeneficiariesToCreate = entities
+                          .where(
+                              (e) => e.runtimeType == ProjectBeneficiaryModel)
+                          .toList();
 
-                    // Remove from update list
-                    toUpdate.removeWhere(
-                        (e) => projectBeneficiariesToCreate.contains(e));
+                      toCreate.addAll(projectBeneficiariesToCreate);
+
+                      // Remove from update list
+                      toUpdate.removeWhere(
+                          (e) => projectBeneficiariesToCreate.contains(e));
+                    }
                   }
 
                   blocWrapper.add(
@@ -1313,15 +1334,17 @@ class _SearchBeneficiaryPageState
                       final items = blocState.householdMembers;
                       return BlocListener<DigitScannerBloc, DigitScannerState>(
                         listenWhen: (previous, current) {
-                          // Only listen when HouseholdOverviewPage is the active route
+                          // Only listen when SearchBeneficiaryPage is the active route
                           return ModalRoute.of(context)?.isCurrent ?? false;
                         },
                         listener: (context, scannerState) {
-                          if (scannerState.qrCodes.isNotEmpty &&
+                          if (_shouldUpdateFromScanner &&
+                              scannerState.qrCodes.isNotEmpty &&
                               selectedTag != scannerState.qrCodes.lastOrNull) {
                             setState(() {
                               selectedTag =
                                   scannerState.qrCodes.lastOrNull ?? "";
+                              _shouldUpdateFromScanner = false;
                             });
                             triggerGlobalSearchEvent();
                           }
@@ -1667,6 +1690,7 @@ class _SearchBeneficiaryPageState
                 .read<DigitScannerBloc>()
                 .add(const DigitScannerEvent.handleScanner());
             selectedFilters = [];
+            selectedTag = "";
             blocWrapper.add(const RegistrationWrapperEvent.clear());
           },
         ),
@@ -1686,7 +1710,11 @@ class _SearchBeneficiaryPageState
           onPressed: () {
             blocWrapper.add(const RegistrationWrapperEvent.clear());
             selectedFilters = [];
+            selectedTag = "";
             searchController.clear();
+            setState(() {
+              _shouldUpdateFromScanner = true;
+            });
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) => const DigitScannerPage(
