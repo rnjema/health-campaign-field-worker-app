@@ -73,7 +73,7 @@ final jsonConfig = {
             "height": "beneficiaryDetails.height",
             "weight": "beneficiaryDetails.weight",
             "isPregnant": "beneficiaryDetails.isPregnant"
-          }
+          },
           /// Note: Generate uuid
           "tenantId": "__context:tenantId",
           "rowVersion": "meta.rowVersion",
