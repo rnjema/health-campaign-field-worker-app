@@ -64,7 +64,7 @@ dependencies:
   digit_data_model: ^1.1.2+1
   registration_delivery: ^1.0.7+1
   disable_battery_optimization: ^1.1.1
-  digit_dss: ^1.0.4+2
+  digit_dss: ^1.0.4+3
   closed_household: ^1.0.5+2
   digit_location_tracker: ^1.0.0
   permission_handler: ^11.3.1

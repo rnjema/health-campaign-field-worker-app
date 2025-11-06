@@ -1,3 +1,7 @@
+## 1.0.4+3
+
+* Added missing translator to table header
+
 ## 1.0.4+2
 
 * Updated to latest packages
