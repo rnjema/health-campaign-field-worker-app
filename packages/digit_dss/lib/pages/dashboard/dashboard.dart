@@ -6,6 +6,7 @@ import 'package:digit_ui_components/theme/spacers.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_info_card.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_loader.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_toast.dart';
+import 'package:digit_ui_components/widgets/atoms/table_cell.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_table.dart';
 import 'package:digit_ui_components/widgets/powered_by_digit.dart';
 import 'package:digit_ui_components/widgets/scrollable_content.dart';
@@ -130,22 +131,34 @@ class UserDashboardPageState extends LocalizedState<UserDashboardPage> {
                               i18.common.noResultsFound,
                             ),
                           ),
-                        ...(tableData ?? [])
-                            .map((table) => Padding(
-                                  padding: const EdgeInsets.all(spacer1),
-                                  child: DigitTable(
-                                    scrollPhysics: (table.tableData.length) > 5
-                                        ? const ClampingScrollPhysics()
-                                        : const NeverScrollableScrollPhysics(),
-                                    rows: table.tableData,
-                                    columns: table.headerList,
-                                    tableHeight:
-                                        MediaQuery.of(context).size.height * .3,
-                                    showSelectedState: false,
-                                    showPagination: false,
-                                  ),
-                                ))
-                            .toList(),
+                        ...(tableData ?? []).map((table) {
+                          final translatedHeaders =
+                              table.headerList.map((column) {
+                            return DigitTableColumn(
+                                header: localizations.translate(column.header),
+                                cellValue: column.cellValue,
+                                isFrozen: column.isFrozen);
+                          }).toList();
+
+                          return Padding(
+                            padding: const EdgeInsets.all(spacer1),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const ClampingScrollPhysics(),
+                              child: DigitTable(
+                                scrollPhysics: (table.tableData.length) > 5
+                                    ? const ClampingScrollPhysics()
+                                    : const NeverScrollableScrollPhysics(),
+                                rows: table.tableData,
+                                columns: translatedHeaders,
+                                tableHeight:
+                                    MediaQuery.of(context).size.height * .3,
+                                showSelectedState: false,
+                                showPagination: false,
+                              ),
+                            ),
+                          );
+                        }).toList(),
                         if ((tableData ?? []).isNotEmpty)
                           Align(
                             alignment: Alignment.center,
