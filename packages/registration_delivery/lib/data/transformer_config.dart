@@ -69,7 +69,11 @@ final jsonConfig = {
           "photo": "personalDetails.photo",
           "nonRecoverableError": "errors.nonRecoverable",
           "clientReferenceId": "__generate:uuid",
-
+          "additionalFields": {
+            "height": "beneficiaryDetails.height",
+            "weight": "beneficiaryDetails.weight",
+            "isPregnant": "beneficiaryDetails.isPregnant"
+          }
           /// Note: Generate uuid
           "tenantId": "__context:tenantId",
           "rowVersion": "meta.rowVersion",
