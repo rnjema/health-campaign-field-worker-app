@@ -232,7 +232,8 @@ Map<String, dynamic> fetchProductVariant(ProjectCycleDelivery? currentDelivery,
                     orElse: () => AdditionalField(
                         AdditionalFieldsType.weight.toValue(), '0.0'),
                   )
-                  .value ??
+                  .value
+                  .toString() ??
               '0.0') ??
           0.0;
 
@@ -243,7 +244,8 @@ Map<String, dynamic> fetchProductVariant(ProjectCycleDelivery? currentDelivery,
                     orElse: () => AdditionalField(
                         AdditionalFieldsType.height.toValue(), '0.0'),
                   )
-                  .value ??
+                  .value
+                  .toString() ??
               '0.0') ??
           0.0;
     }
