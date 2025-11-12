@@ -405,7 +405,8 @@ class BeneficiaryDetailsPageState
                                                                       state
                                                                           .householdMembers
                                                                           .first
-                                                                          .household),
+                                                                          .household,
+                                                                      true),
                                                                 ],
                                                                 actions: [
                                                                   DigitButton(

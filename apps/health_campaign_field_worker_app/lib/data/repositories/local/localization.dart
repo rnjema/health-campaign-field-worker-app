@@ -48,7 +48,16 @@ class LocalizationLocalRepository {
               : const Constant(false);
 
           // Combine conditions: module matches and optionally code filter
-          andConditions.add(buildAnd([moduleCondition | codeCondition]));
+          final moduleList =
+              moduleToExclude.split(',').map((e) => e.trim()).toList();
+
+          // Combine conditions: module matches and optionally code filter
+          andConditions.add(
+            buildOr([
+              sql.localization.module.isIn(moduleList),
+              codeCondition,
+            ]),
+          );
         }
       } else if (LocalizationParams().code != null &&
           LocalizationParams().code!.isNotEmpty) {

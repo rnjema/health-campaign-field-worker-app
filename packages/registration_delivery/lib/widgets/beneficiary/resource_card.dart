@@ -1,6 +1,5 @@
 import 'package:collection/collection.dart';
 import 'package:digit_data_model/blocs/product_variant/product_variant.dart';
-import 'package:digit_data_model/models/entities/beneficiary_type.dart';
 import 'package:digit_data_model/models/entities/product_variant.dart';
 import 'package:digit_data_model/models/entities/project_type.dart';
 import 'package:digit_forms_engine/forms_engine.dart';
@@ -279,7 +278,10 @@ class _ResourceCardState extends LocalizedState<ResourceCard> {
 
     _maxQuantities = List<int?>.generate(
       _controllers.length,
-      (_) => variant?.productVariants?.first?.quantity,
+      (index) => (variant?.productVariants != null &&
+              index < variant!.productVariants.length)
+          ? variant.productVariants[index].quantity
+          : null,
     );
 
     return fb.group(<String, Object>{
@@ -302,11 +304,12 @@ class _ResourceCardState extends LocalizedState<ResourceCard> {
       ),
       _quantityDistributedKey: FormArray<int>(
         _controllers.map((e) {
+          final index = _controllers.indexOf(e);
           return FormControl<int>(
-            value: RegistrationDeliverySingleton().beneficiaryType !=
-                    BeneficiaryType.household
-                ? variant?.productVariants?.first?.quantity
-                : variant?.productVariants?.first?.quantity,
+            value: (variant?.productVariants != null &&
+                    index < variant!.productVariants.length)
+                ? variant.productVariants[index].quantity
+                : null,
             validators: [Validators.min(1)],
           );
         }).toList(),

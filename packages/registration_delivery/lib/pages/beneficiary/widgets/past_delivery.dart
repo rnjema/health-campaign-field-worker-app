@@ -21,6 +21,7 @@ Widget buildTableContent(
   List<ProductVariantModel>? variant,
   IndividualModel? individualModel,
   HouseholdModel? householdModel,
+  bool isPopUp,
 ) {
   final pageKey = BeneficiaryDetailsRoute.name.replaceAll('Route', '');
   final beneficiaryDetailsTableConfig = RegistrationDeliverySingleton()
@@ -40,8 +41,9 @@ Widget buildTableContent(
   final localizations = RegistrationDeliveryLocalization.of(context);
 
   // Defining a list of table headers for resource popup
-  final columnListResource = beneficiaryDetailsTableConfig?.hidden != true &&
-          (beneficiaryDetailsTableConfig?.enums ?? []).isNotEmpty
+  final columnListResource = !isPopUp &&
+          (beneficiaryDetailsTableConfig?.hidden != true &&
+              (beneficiaryDetailsTableConfig?.enums ?? []).isNotEmpty)
       ? beneficiaryDetailsTableConfig?.enums
           ?.map(
             (header) => DigitTableColumn(
