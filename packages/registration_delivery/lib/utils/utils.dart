@@ -401,6 +401,14 @@ Map<String, dynamic> fetchProductVariant(ProjectCycleDelivery? currentDelivery,
   // Remove duplicate error messages
   errorMessages = errorMessages.toSet().toList();
 
+  // ✅ Format error messages (add spaces around 'and' / 'or')
+  errorMessages = errorMessages
+      .map((msg) => msg
+          .replaceAllMapped(RegExp(r'\s*and\s*'), (_) => ' and ')
+          .replaceAllMapped(RegExp(r'\s*or\s*'), (_) => ' or ')
+          .trim())
+      .toList();
+
   return {
     'criteria': deliveryDoseCriteria,
     'errors': errorMessages,
