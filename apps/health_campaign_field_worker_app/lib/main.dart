@@ -5,8 +5,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:isar/isar.dart';
+import 'package:jailbreak_root_detection/jailbreak_root_detection.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
 import 'app.dart';
 import 'blocs/app_bloc_observer.dart';
 import 'data/local_store/app_shared_preferences.dart';
@@ -26,6 +28,10 @@ int i = 0;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Check if device is rooted/jailbroken
+  final isRooted = await JailbreakRootDetection.instance.isJailBroken;
+  debugPrint('Device is rooted/jailbroken: $isRooted');
+
   await initializeAllMappers();
   final info = await PackageInfo.fromPlatform();
   setupErrorWidget();
@@ -40,6 +46,7 @@ void main() async {
 
   await envConfig.initialize();
   WidgetsBinding.instance.addObserver(AppLifecycleObserver());
+  await DioClient().enableSSLPinning(); // Enable SSL pinning (comment out to disable)
   _dio = DioClient().dio;
 
   DigitUi.instance.initThemeComponents();
