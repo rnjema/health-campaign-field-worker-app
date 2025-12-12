@@ -12,6 +12,7 @@ import 'repositories/api_interceptors.dart'; // Custom API interceptors for Dio
 // The DioClient class for managing the Dio instance
 class DioClient {
   late Dio _dio; // Private instance of Dio
+  bool _sslPinningEnabled = false; // Track if SSL pinning is configured
 
   // Singleton instance of DioClient
   static final DioClient _instance = DioClient._internal();
@@ -33,6 +34,22 @@ class DioClient {
   void _init() {
     _dio = Dio()
       ..interceptors.addAll([
+        // SSL Pinning check interceptor - must be first
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            if (!_sslPinningEnabled) {
+              debugPrint('SSL Pinning: Request blocked - SSL pinning not enabled');
+              return handler.reject(
+                DioException(
+                  requestOptions: options,
+                  error: 'SSL Pinning not enabled. Call enableSSLPinning() first.',
+                  type: DioExceptionType.cancel,
+                ),
+              );
+            }
+            return handler.next(options);
+          },
+        ),
         AuthTokenInterceptor(),
         ApiLoggerInterceptor(),
       ])
@@ -52,30 +69,34 @@ class DioClient {
 
   // Enable SSL certificate pinning
   Future<void> enableSSLPinning() async {
-    try {
-      // Load the certificate from assets
-      final certData = await rootBundle.load('assets/certificates/tls_cert.crt');
+    if (_sslPinningEnabled) return; // Already enabled
 
-      // Create SecurityContext with pinned certificate
+    // Load the certificate from assets
+    final certData = await rootBundle.load('assets/certificates/tls_cert.crt');
+    final certBytes = certData.buffer.asUint8List();
+
+    // Configure Dio to use custom HttpClient with SSL pinning
+    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+      // Create SecurityContext with pinned certificate inside callback
       final securityContext = SecurityContext(withTrustedRoots: false);
-      securityContext.setTrustedCertificatesBytes(certData.buffer.asUint8List());
+      securityContext.setTrustedCertificatesBytes(certBytes);
 
       // Create HttpClient with the custom SecurityContext
-      final httpClient = HttpClient(context: securityContext)
-        ..badCertificateCallback = (cert, host, port) {
-          debugPrint('Bad certificate for $host');
-          return false;
-        };
-
-      // Configure Dio to use the custom HttpClient
-      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-        return httpClient;
+      final httpClient = HttpClient(context: securityContext);
+      httpClient.badCertificateCallback = (cert, host, port) {
+        debugPrint('SSL Pinning: Bad certificate rejected for $host');
+        throw DioException(
+          requestOptions: RequestOptions(path: host),
+          error: 'SSL Certificate validation failed for $host',
+          type: DioExceptionType.badCertificate,
+        );
       };
 
-      debugPrint('SSL Certificate Pinning enabled');
-    } catch (e) {
-      debugPrint('Failed to enable SSL pinning: $e');
-    }
+      return httpClient;
+    };
+
+    _sslPinningEnabled = true;
+    debugPrint('SSL Certificate Pinning enabled');
   }
 
   // Disable SSL certificate pinning (use default system certificates)
@@ -83,6 +104,7 @@ class DioClient {
     (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
       return HttpClient();
     };
+    _sslPinningEnabled = false;
     debugPrint('SSL Certificate Pinning disabled');
   }
 }
