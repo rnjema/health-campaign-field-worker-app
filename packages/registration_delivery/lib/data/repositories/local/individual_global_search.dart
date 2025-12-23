@@ -169,14 +169,30 @@ class IndividualGlobalSearchRepository extends LocalRepository {
     if (!params.isProximityEnabled) {
       return null;
     } else if (params.isProximityEnabled) {
+      // Calculate bounding box for pre-filtering (reduces rows before expensive Haversine)
+      // Approximate: 1 degree latitude ≈ 111,000 meters
+      final double latDelta = (params.maxRadius ?? 5000) / 111000.0;
+      // Longitude degrees vary by latitude, adjust accordingly
+      final double lonDelta = (params.maxRadius ?? 5000) /
+          (111000.0 * math.cos(params.latitude! * math.pi / 180.0));
+
+      final double minLat = params.latitude! - latDelta;
+      final double maxLat = params.latitude! + latDelta;
+      final double minLon = params.longitude! - lonDelta;
+      final double maxLon = params.longitude! + lonDelta;
+
       selectQuery = super.sql.individual.select().join([
         joinIndividualAddress(sql),
-        leftOuterJoin(sql.household,
-            sql.household.householdType.equalsValue(params.householdType)),
+        // Fix: Join householdMember first, then household through it
         leftOuterJoin(
             sql.householdMember,
             sql.householdMember.individualClientReferenceId
                 .equalsExp(sql.individual.clientReferenceId)),
+        leftOuterJoin(
+            sql.household,
+            sql.household.clientReferenceId
+                    .equalsExp(sql.householdMember.householdClientReferenceId) &
+                sql.household.householdType.equalsValue(params.householdType)),
         leftOuterJoin(
             sql.projectBeneficiary,
             sql.projectBeneficiary.beneficiaryClientReferenceId
@@ -188,6 +204,18 @@ class IndividualGlobalSearchRepository extends LocalRepository {
             sql.householdMember.isHeadOfHousehold.equals(true),
           sql.address.relatedClientReferenceId.isNotNull(),
           sql.individual.clientReferenceId.isNotNull(),
+          // Bounding box pre-filter (uses indexes, fast elimination)
+          if (params.latitude != null &&
+              params.longitude != null &&
+              params.maxRadius != null) ...[
+            sql.address.latitude.isBiggerOrEqualValue(minLat),
+            sql.address.latitude.isSmallerOrEqualValue(maxLat),
+            sql.address.longitude.isBiggerOrEqualValue(minLon),
+            sql.address.longitude.isSmallerOrEqualValue(maxLon),
+          ],
+          sql.address.longitude.isNotNull(),
+          sql.address.latitude.isNotNull(),
+          // Precise Haversine filter (applied after bounding box reduces rows)
           if (params.latitude != null &&
               params.longitude != null &&
               params.maxRadius != null)
@@ -198,13 +226,6 @@ class IndividualGlobalSearchRepository extends LocalRepository {
                   + sin(${params.latitude! * math.pi / 180.0}) * sin((address.latitude * ${math.pi / 180.0}))
               )) <= ${params.maxRadius!}
             '''),
-          if (params.latitude != null &&
-              params.longitude != null &&
-              params.maxRadius != null)
-            sql.address.longitude.isNotNull(),
-          sql.address.latitude.isNotNull(),
-          sql.householdMember.householdClientReferenceId
-              .equalsExp(sql.household.clientReferenceId),
         ]))
         ..orderBy([
           if (params.latitude != null &&
@@ -350,12 +371,17 @@ class IndividualGlobalSearchRepository extends LocalRepository {
       if (filter == Status.registered.name ||
           filter == Status.notRegistered.name) {
         selectQuery = sql.individual.select().join([
-          leftOuterJoin(sql.household,
-              sql.household.householdType.equalsValue(params.householdType)),
+          // Fix: Join householdMember first, then household through it
           leftOuterJoin(
               sql.householdMember,
               sql.householdMember.individualClientReferenceId
                   .equalsExp(sql.individual.clientReferenceId)),
+          leftOuterJoin(
+              sql.household,
+              sql.household.clientReferenceId.equalsExp(
+                      sql.householdMember.householdClientReferenceId) &
+                  sql.household.householdType
+                      .equalsValue(params.householdType)),
           if (params.nameSearch == null || !params.isProximityEnabled)
             leftOuterJoin(
                 sql.projectBeneficiary,
@@ -363,8 +389,6 @@ class IndividualGlobalSearchRepository extends LocalRepository {
                     .equalsExp(sql.individual.clientReferenceId))
         ])
           ..where(buildAnd([
-            sql.householdMember.householdClientReferenceId
-                .equalsExp(sql.household.clientReferenceId),
             filter == Status.registered.name
                 ? sql.projectBeneficiary.beneficiaryClientReferenceId
                     .isNotNull()

@@ -172,6 +172,18 @@ class HouseHoldGlobalSearchRepository extends LocalRepository {
     if (!params.isProximityEnabled) {
       return null;
     } else if (params.isProximityEnabled) {
+      // Calculate bounding box for pre-filtering (reduces rows before expensive Haversine)
+      // Approximate: 1 degree latitude ≈ 111,000 meters
+      final double latDelta = (params.maxRadius ?? 5000) / 111000.0;
+      // Longitude degrees vary by latitude, adjust accordingly
+      final double lonDelta = (params.maxRadius ?? 5000) /
+          (111000.0 * math.cos(params.latitude! * math.pi / 180.0));
+
+      final double minLat = params.latitude! - latDelta;
+      final double maxLat = params.latitude! + latDelta;
+      final double minLon = params.longitude! - lonDelta;
+      final double maxLon = params.longitude! + lonDelta;
+
       selectQuery = super.sql.address.select().join([
         joinHouseHoldAddress(sql),
         leftOuterJoin(
@@ -182,6 +194,18 @@ class HouseHoldGlobalSearchRepository extends LocalRepository {
         ..where(buildAnd([
           sql.address.relatedClientReferenceId.isNotNull(),
           sql.household.clientReferenceId.isNotNull(),
+          // Bounding box pre-filter (uses indexes, fast elimination)
+          if (params.latitude != null &&
+              params.longitude != null &&
+              params.maxRadius != null) ...[
+            sql.address.latitude.isBiggerOrEqualValue(minLat),
+            sql.address.latitude.isSmallerOrEqualValue(maxLat),
+            sql.address.longitude.isBiggerOrEqualValue(minLon),
+            sql.address.longitude.isSmallerOrEqualValue(maxLon),
+          ],
+          sql.address.longitude.isNotNull(),
+          sql.address.latitude.isNotNull(),
+          // Precise Haversine filter (applied after bounding box reduces rows)
           if (params.latitude != null &&
               params.longitude != null &&
               params.maxRadius != null)
@@ -192,11 +216,6 @@ class HouseHoldGlobalSearchRepository extends LocalRepository {
                   + sin(${params.latitude! * math.pi / 180.0}) * sin((address.latitude * ${math.pi / 180.0}))
               )) <= ${params.maxRadius!}
             '''),
-          if (params.latitude != null &&
-              params.longitude != null &&
-              params.maxRadius != null)
-            sql.address.longitude.isNotNull(),
-          sql.address.latitude.isNotNull(),
           sql.household.householdType.equalsValue(params.householdType)
         ]))
         ..orderBy([
