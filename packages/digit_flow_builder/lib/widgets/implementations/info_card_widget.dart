@@ -44,19 +44,39 @@ class InfoCardWidget implements FlowWidget {
       // Include formData for {{selectedProduct}}, {{selectedFacility}} etc.
     };
 
-    // Check visibility condition
-    final visible = ConditionalEvaluator.evaluate(
-      json['visible'] ?? true,
-      evalContext,
-      screenKey: screenKey,
-    );
+    // Check visibility condition - support both 'visible' and 'hidden' properties
+    final visibleProp = json['visible'];
+    final hiddenProp = json['hidden'];
 
-    if (visible == false || items.isNotEmpty) {
+    bool shouldShow = true;
+
+    if (hiddenProp != null) {
+      // If hidden property exists, evaluate it
+      final isHidden = ConditionalEvaluator.evaluate(
+        hiddenProp,
+        evalContext,
+        screenKey: screenKey,
+        stateData: crudCtx?.stateData,
+      );
+      shouldShow = isHidden != true;
+    } else if (visibleProp != null) {
+      // Fall back to visible property
+      final isVisible = ConditionalEvaluator.evaluate(
+        visibleProp,
+        evalContext,
+        screenKey: screenKey,
+        stateData: crudCtx?.stateData,
+      );
+      shouldShow = isVisible == true;
+    }
+
+    // Original behavior: hide if visibility check fails OR if items exist
+    if (!shouldShow || items.isNotEmpty) {
       return const SizedBox.shrink();
     }
 
-    // Determine info type from config (default to info)
-    final typeString = json['type']?.toString().toLowerCase() ?? 'info';
+    // Determine info type from config (use 'infoType' property, default to info)
+    final typeString = json['infoType']?.toString().toLowerCase() ?? 'info';
     final infoType = typeString == 'error'
         ? InfoType.error
         : typeString == 'warning'
@@ -65,12 +85,10 @@ class InfoCardWidget implements FlowWidget {
                 ? InfoType.success
                 : InfoType.info;
 
-    if (items.isNotEmpty) return const SizedBox.shrink();
-
     final localization = LocalizationContext.maybeOf(context);
 
     return InfoCard(
-      type: InfoType.info,
+      type: infoType,
       title:
           localization?.translate(json['label'] ?? '') ?? (json['label'] ?? ''),
       description: localization?.translate(json['description'] ?? '') ??

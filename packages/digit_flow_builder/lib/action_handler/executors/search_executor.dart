@@ -52,10 +52,16 @@ class SearchExecutor extends ActionExecutor {
     final filtersList = data['data'] as List<dynamic>;
     final filters = <SearchFilter>[];
 
+    debugPrint('🔍 [SearchExecutor] Processing SEARCH_EVENT');
+    debugPrint('🔍 [SearchExecutor] Root table (name): ${data['name']}');
+    debugPrint('🔍 [SearchExecutor] Filters count: ${filtersList.length}');
+
     for (var filterData in filtersList) {
       final rawKey = filterData['key'];
       final rawValue = filterData['value'];
       final operation = filterData['operation'];
+
+      debugPrint('🔍 [SearchExecutor] Filter - key: $rawKey, value: $rawValue, operation: $operation');
 
       // Resolve the key (for dynamic keys like {{fn:getSenderOrReceiver(...)}})
       final resolvedKey = resolveValue(rawKey, resolveContext,
@@ -108,13 +114,20 @@ class SearchExecutor extends ActionExecutor {
         continue;
       }
 
+      debugPrint('🔍 [SearchExecutor] Resolved key: $resolvedKey');
+      debugPrint('🔍 [SearchExecutor] Resolved value: $resolvedValue');
+
       filters.add(SearchFilter(
         root: data['name'],
         field: resolvedKey.toString(),
         operator: operation,
         value: resolvedValue,
       ));
+
+      debugPrint('🔍 [SearchExecutor] Added filter - root: ${data['name']}, field: $resolvedKey, op: $operation, value: $resolvedValue');
     }
+
+    debugPrint('🔍 [SearchExecutor] Total filters created: ${filters.length}');
 
     final config = FlowRegistry.getByName(screenKey ?? '');
 
@@ -204,6 +217,10 @@ class SearchExecutor extends ActionExecutor {
       return completer.future;
     } else {
       // Fire and forget - original behavior
+      debugPrint('🔍 [SearchExecutor] Dispatching CrudEventSearch to bloc');
+      debugPrint('🔍 [SearchExecutor] Primary model: ${searchParams.primaryModel}');
+      debugPrint('🔍 [SearchExecutor] Select: ${searchParams.select}');
+      debugPrint('🔍 [SearchExecutor] Filters: ${searchParams.filters.map((f) => '${f.root}.${f.field} ${f.operator} ${f.value}').toList()}');
       crudBloc.add(CrudEventSearch(searchParams));
       return contextData;
     }

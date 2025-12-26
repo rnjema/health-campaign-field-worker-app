@@ -142,6 +142,40 @@ String interpolateWithCrudStates({
     return FunctionRegistry.call(fnName, resolvedArgs, stateData)?.toString() ?? '';
   });
 
+  // --- Handle .empty and .notEmpty pseudo-properties ---
+  final emptyRegex = RegExp(
+    r'\{\{\s*(context)\.([A-Za-z_][\w]*)\.(?:empty|notEmpty)\s*\}\}',
+  );
+  template = template.replaceAllMapped(emptyRegex, (match) {
+    final modelNameOrKey = match.group(2);
+    final fullMatch = match.group(0)!;
+    final isNotEmpty = fullMatch.contains('.notEmpty');
+
+    final models = stateData.modelMap[modelNameOrKey];
+    bool isEmpty;
+    if (models == null) {
+      isEmpty = true;
+    } else if (models is List) {
+      isEmpty = models.isEmpty;
+    } else {
+      isEmpty = false;
+    }
+
+    // Return 'true' or 'false' as string for boolean evaluation
+    return isNotEmpty ? (!isEmpty).toString() : isEmpty.toString();
+  });
+
+  // --- Handle .length pseudo-property ---
+  final lengthRegex = RegExp(
+    r'\{\{\s*(context)\.([A-Za-z_][\w]*)\.length\s*\}\}',
+  );
+  template = template.replaceAllMapped(lengthRegex, (match) {
+    final modelNameOrKey = match.group(2);
+    final models = stateData.modelMap[modelNameOrKey];
+    if (models == null) return '0';
+    return models is List ? models.length.toString() : '1';
+  });
+
   // --- Normal placeholder resolution ---
   final regex = RegExp(
     r'\{\{\s*(context|item|navigation|widgetData)\.([A-Za-z_][\w]*)'

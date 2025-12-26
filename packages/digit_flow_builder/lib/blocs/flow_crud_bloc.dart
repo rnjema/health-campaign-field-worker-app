@@ -23,12 +23,23 @@ class FlowCrudBloc extends CrudBloc {
     final CrudState crudState = transition.nextState;
     List<dynamic>? wrapper;
 
+    debugPrint('🔍 [FlowCrudBloc] onTransition - state: ${crudState.runtimeType}');
+
     if (crudState is CrudStateLoaded) {
       final entities = crudState.results.values.expand((list) => list).toList();
+      debugPrint('🔍 [FlowCrudBloc] CrudStateLoaded - entities count: ${entities.length}');
+      debugPrint('🔍 [FlowCrudBloc] Results keys: ${crudState.results.keys.toList()}');
+      for (var key in crudState.results.keys) {
+        debugPrint('🔍 [FlowCrudBloc] $key: ${crudState.results[key]?.length} items');
+      }
       wrapper = WrapperBuilder(entities, flowConfig['wrapperConfig']).build();
+      debugPrint('🔍 [FlowCrudBloc] Wrapper built - items: ${wrapper.length}');
     } else if (crudState is CrudStatePersisted) {
       final entities = crudState.entities;
+      debugPrint('🔍 [FlowCrudBloc] CrudStatePersisted - entities count: ${entities.length}');
       wrapper = WrapperBuilder(entities, flowConfig['wrapperConfig']).build();
+    } else if (crudState is CrudStateError) {
+      debugPrint('🔍 [FlowCrudBloc] CrudStateError - message: ${crudState.message}');
     }
 
     // Preserve existing formData and widgetData when creating new state

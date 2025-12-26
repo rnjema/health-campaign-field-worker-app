@@ -3099,6 +3099,8 @@ final dynamic sampleReferralFlows = {
           "type": "template",
           "label": "REFERRAL_INBOX_SEARCHBAR_LABEL",
           "fieldName": "searchBar",
+          "enableIdSearch": true,
+          "idSearchLabel": "SEARCH_BY_BENEFICIARY_ID",
           "onAction": [
             {
               "actionType": "SEARCH_EVENT",
@@ -3108,6 +3110,22 @@ final dynamic sampleReferralFlows = {
                 "data": [
                   {
                     "key": "givenName",
+                    "value": "field.value",
+                    "operation": "contains"
+                  }
+                ]
+              }
+            }
+          ],
+          "onActionById": [
+            {
+              "actionType": "SEARCH_EVENT",
+              "properties": {
+                "type": "field.value==true ? SEARCH_EVENT : CLEAR_EVENT",
+                "name": "hFReferral",
+                "data": [
+                  {
+                    "key": "beneficiaryId",
                     "value": "field.value",
                     "operation": "contains"
                   }
@@ -4260,6 +4278,8 @@ final dynamic sampleReferralFlows = {
           "type": "template",
           "label": "REFERRAL_INBOX_SEARCHBAR_LABEL",
           "fieldName": "searchBar",
+          "enableIdSearch": true,
+          "idSearchLabel": "SEARCH_BY_BENEFICIARY_ID",
           "onAction": [
             {
               "actionType": "SEARCH_EVENT",
@@ -4269,6 +4289,22 @@ final dynamic sampleReferralFlows = {
                 "data": [
                   {
                     "key": "givenName",
+                    "value": "field.value",
+                    "operation": "contains"
+                  }
+                ]
+              }
+            }
+          ],
+          "onActionById": [
+            {
+              "actionType": "SEARCH_EVENT",
+              "properties": {
+                "type": "field.value==true ? SEARCH_EVENT : CLEAR_EVENT",
+                "name": "hFReferral",
+                "data": [
+                  {
+                    "key": "beneficiaryId",
                     "value": "field.value",
                     "operation": "contains"
                   }
