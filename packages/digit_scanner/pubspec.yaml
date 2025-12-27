@@ -20,7 +20,7 @@ repository: https://github.com/egovernments/health-campaign-field-worker-app
 version: 1.0.6+2
 
 environment:
-  sdk: '>=2.19.4 <3.9.0'
+  sdk: '>=2.19.4 <4.0.0'
   flutter: ">=1.17.0"
 
 # Dependencies specify other packages that your package needs in order to work.
